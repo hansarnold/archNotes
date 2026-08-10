@@ -1,0 +1,41 @@
+{
+  "name": "fused_gemm_gelu",
+  "description": "Simplified MXM-to-VXM stream chaining inspired by the BERT mapping paper.",
+  "resources": ["MEM_INPUT", "MXM", "VXM", "MEM_OUTPUT"],
+  "operations": [
+    {
+      "id": "read_activation",
+      "instruction": "Read activation -> S1",
+      "resource": "MEM_INPUT",
+      "latency": 2
+    },
+    {
+      "id": "gemm",
+      "instruction": "GEMM S1 -> S8",
+      "resource": "MXM",
+      "latency": 5,
+      "dependencies": [
+        {"op": "read_activation", "transit": 2}
+      ]
+    },
+    {
+      "id": "gelu_chain",
+      "instruction": "Dequant + GELU + Quant S8 -> S12",
+      "resource": "VXM",
+      "latency": 4,
+      "dependencies": [
+        {"op": "gemm", "transit": 1}
+      ]
+    },
+    {
+      "id": "write_output",
+      "instruction": "Write S12 -> output",
+      "resource": "MEM_OUTPUT",
+      "latency": 1,
+      "dependencies": [
+        {"op": "gelu_chain", "transit": 1}
+      ]
+    }
+  ]
+}
+

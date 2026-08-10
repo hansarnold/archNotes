@@ -1,0 +1,43 @@
+{
+  "name": "vector_add",
+  "description": "Teaching model for Z = X + Y using independent MEM and VXM queues.",
+  "resources": ["MEM_X", "MEM_Y", "VXM", "MEM_Z"],
+  "operations": [
+    {
+      "id": "read_x",
+      "instruction": "Read X -> S1 east",
+      "resource": "MEM_X",
+      "latency": 2,
+      "occupancy": 1
+    },
+    {
+      "id": "read_y",
+      "instruction": "Read Y -> S2 east",
+      "resource": "MEM_Y",
+      "latency": 2,
+      "occupancy": 1
+    },
+    {
+      "id": "add",
+      "instruction": "Add S1, S2 -> S3",
+      "resource": "VXM",
+      "latency": 3,
+      "occupancy": 1,
+      "dependencies": [
+        {"op": "read_x", "transit": 2},
+        {"op": "read_y", "transit": 1}
+      ]
+    },
+    {
+      "id": "write_z",
+      "instruction": "Write S3 -> Z",
+      "resource": "MEM_Z",
+      "latency": 1,
+      "occupancy": 1,
+      "dependencies": [
+        {"op": "add", "transit": 2}
+      ]
+    }
+  ]
+}
+

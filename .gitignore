@@ -1,0 +1,11 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+
+# Downloaded papers, rendered pages and migration backups.
+tmp/
+
+# Locally generated schedules and traces.
+output/
+

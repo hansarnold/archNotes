@@ -1,0 +1,8 @@
+{
+  "tiles": 12,
+  "reader_cycles": 3,
+  "compute_cycles": 5,
+  "writer_cycles": 2,
+  "input_cb_capacity": 2,
+  "output_cb_capacity": 2
+}

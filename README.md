@@ -32,6 +32,7 @@
 | --- | --- |
 | `notes/ai-accelerator-architecture-comparison.md` | GPU、Groq、Tenstorrent、Google TPU 的统一架构坐标系 |
 | `sources/catalog.md` | 四类 accelerator、论文、官方文档与通用背景资料索引 |
+| `notes/nvidia-gpu-synchronization.md` | NVIDIA GPU 流水，以及 convergence、scoreboard、collective、atomic/barrier、async completion、lifetime 与 multi-GPU sync |
 | `notes/architecture.md` | 第一代 Groq TSP 微架构导读 |
 | `notes/lpu-vs-gpu.md` | Groq LPU/TSP 与 GPU 基础对照 |
 | `notes/nvidia-groq3-heterogeneous-inference.md` | Rubin GPU + Groq 3 LPX 的 AFD、负载路由与容量模型 |
@@ -52,7 +53,7 @@
 
 ```text
 体系结构基础：pipeline / SIMD / SIMT / systolic / scratchpad / NoC
-  ├→ GPU baseline：SM → warp/occupancy → HBM/cache/shared → multi-GPU
+  ├→ GPU baseline：launch/residency → warp issue → execution/memory pipeline → synchronization → multi-GPU
   ├→ Groq：TSP slices → ISA/静态调度 → C2C → Groq 3 LPX/AFD
   ├→ Tenstorrent：Tensix core → Metalium/TT-NN → TT-MLIR → Galaxy
   ├→ Google TPU：MXU systolic → XLA/PJRT/Pallas → GSPMD/ICI → Pod
@@ -60,7 +61,7 @@
                  → workload fit → heterogeneous serving
 ```
 
-建议先读 [AI accelerator 四架构总览](notes/ai-accelerator-architecture-comparison.md)，再进入 [Groq](notes/architecture.md)、[Tenstorrent](notes/tenstorrent-architecture.md) 和 [Google TPU](notes/google-tpu-architecture.md) 专题。三个本地实验分别对应静态排程、producer-consumer pipeline 和 systolic wavefront：
+建议先读 [AI accelerator 四架构总览](notes/ai-accelerator-architecture-comparison.md)，再进入 [NVIDIA GPU 软硬件流水调度与同步](notes/nvidia-gpu-synchronization.md)、[Groq](notes/architecture.md)、[Tenstorrent](notes/tenstorrent-architecture.md) 和 [Google TPU](notes/google-tpu-architecture.md) 专题。三个本地实验分别对应静态排程、producer-consumer pipeline 和 systolic wavefront：
 
 ```bash
 python3 labs/static_scheduler/scheduler.py \

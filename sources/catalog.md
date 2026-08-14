@@ -167,8 +167,22 @@ TPU v1 用于研究 first-generation inference ASIC、software-managed memory、
 - Network-on-chip、Dragonfly、source routing、flow control
 - NVIDIA CUDA Programming Guide：<https://docs.nvidia.com/cuda/cuda-programming-guide/index.html>
 - NVIDIA CUDA C++ Best Practices Guide：<https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/>
+- NVIDIA Hopper Tuning Guide：<https://docs.nvidia.com/cuda/archive/13.0.0/hopper-tuning-guide/index.html>
+- NVIDIA PTX ISA：<https://docs.nvidia.com/cuda/parallel-thread-execution/>
+- NVIDIA CUDA asynchronous barriers：<https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/async-barriers.html>
+- NVIDIA CUDA pipelines：<https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/pipelines.html>
+- NVIDIA Nsight Compute Profiling Guide：<https://docs.nvidia.com/nsight-compute/ProfilingGuide/>
+- NVIDIA libcu++ synchronization primitives：<https://nvidia.github.io/cccl/libcudacxx/extended_api/synchronization_primitives.html>
+- NVIDIA Cooperative Groups：<https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/cooperative-groups.html>
+- NVIDIA Programmatic Dependent Launch：<https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/programmatic-dependent-launch.html>
+- NVIDIA Stream-Ordered Memory Allocator：<https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/stream-ordered-memory-allocation.html>
+- NVIDIA Green Contexts：<https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/green-contexts.html>
+- NVIDIA Cluster Launch Control：<https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/cluster-launch-control.html>
+- NVIDIA CUDA Multi-GPU Systems：<https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/multi-gpu-systems.html>
+- NVIDIA NCCL stream semantics：<https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/streams.html>
+- NVIDIA NVSHMEM memory ordering：<https://docs.nvidia.com/nvshmem/api/gen/api/ordering.html>
 
-CUDA 资料用于建立 GPU 的 SIMT、warp scheduler、memory hierarchy、occupancy 和 coalescing 对照模型，不应将 NVIDIA 某代 SM 的具体参数泛化为所有 GPU。
+CUDA 资料用于建立 GPU 的 work submission、block/cluster placement、warp residency、instruction issue、execution/memory pipeline，以及 convergence、scoreboard、collective、atomicity、ordering、async completion、work stealing、object lifetime 和 distributed delivery 模型，不应将 NVIDIA 某代 SM 的具体参数泛化为所有 GPU。`mbarrier`、TMA tx-count、WGMMA、Cluster Launch Control、tcgen05、cluster scope 和 proxy/fabric 扩展必须保留 PTX ISA 与 target generation 边界。
 
 ### ML 编译器
 

@@ -22,32 +22,24 @@
 
 交付物：给 `notes/architecture.md` 增加自己的结构图和术语表。
 
-## 第 1N 阶段：NVIDIA GPU 软硬件流水调度与同步
+## 第 1N 阶段：NVIDIA GPU 软硬件流水与同步
 
-阅读 `notes/nvidia-gpu-synchronization.md`，先跟踪 work pipeline 与 warp instruction pipeline，再把“同步”放回每一个放行 gate：
+阅读 `notes/nvidia-gpu-synchronization.md`，不要先背 primitive。跟随同一块 tile 完成八次交接：
 
-- host submission、stream/graph dependency、grid dispatch 与 block/cluster placement；
-- Green/Execution Context 的 SM/work-queue partition、context event 与“减少干扰不等于保证并发”；
-- resident/active、eligible、issued warp 的区别，以及 occupancy 如何影响 latency hiding；
-- fetch/decode、dependency readiness、scheduler selection、execution/memory pipeline 与 completion；
-- warp scheduler 与 scoreboard 如何判断 instruction 是否 ready；
-- Nsight Compute 的 not selected、long/short scoreboard、math pipe throttle、barrier、membar 与 drain 如何映射回流水；
-- Independent Thread Scheduling、active mask、participant set 与 warp `*_sync` collective；
-- `__syncwarp`、`__syncthreads`、CTA/cluster barrier 的 participant 与 scope；
-- `cuda::atomic_ref` 的 atomicity、memory order、thread scope，以及 wait/notify、latch 与 hot-spot serialization；
-- fence 的 acquire/release/SC semantic 与 CTA/GPU/system scope；
-- atomic flag 为什么需要正确的 release/acquire，而 `volatile` 不能替代同步；
-- `mbarrier` 的 phase、arrival count、tx-count 与 arrive/wait separation；
-- `cp.async`、TMA、async proxy、double buffering 和 `cuda::pipeline`；
-- `cp.async`/WGMMA/tcgen 的 async group、specialized wait 与 target-generation 边界；
-- Cooperative Groups 的 subgroup/cluster/grid、PDL、CDP parent-child completion；
-- Blackwell Cluster Launch Control 怎样通过 async cancellation、mbarrier 与 proxy handoff 实现 block/cluster work stealing；
-- stream-ordered allocation lifetime、host/Unified Memory access 与 memory synchronization domain；
-- signal、CUDA event、counting/timeline semaphore、cross-device event、NCCL 与 NVSHMEM completion 的边界。
+1. CPU/upstream task 通过 stream、event 或 graph edge 把 work 交给 kernel；
+2. device scheduler 把 execution resource 交给 resident CTA/warp；
+3. instruction producer 通过 scoreboard 把 register result 交给 dependent instruction；
+4. producer threads 通过 barrier 或 atomic publication 把 shared tile 交给 consumers；
+5. producer warp 通过 async group、TMA/mbarrier 和 Tensor completion 把 tile 交给 async/Tensor pipeline 再取回；
+6. consumer 用 empty/permit 与 phase 把 shared stage 交回下一代 producer；
+7. kernel completion/event 把 global output 交给 downstream stream、host 和 allocator；
+8. cross-device event、NCCL、NVSHMEM 或 external semaphore 把结果交给 remote consumer/API。
 
-实验：写 global-load dependency chain，用 Nsight Compute 观察 active/eligible/issued warp 与 scoreboard/pipeline stall；实现 warp collective、atomic aggregation 与双缓冲 async copy；最后为 PDL、stream-ordered allocation 和可用的 multi-GPU operation 标出不同 completion event。
+每次交接分别证明 progress、completion、visibility 和 ownership，并记录等待期间 warp/CTA/task 仍占用哪些资源。最后再把 Green Context、cluster/cooperative launch、PDL、CDP、Cluster Launch Control、memory synchronization domain 与代际特性放回相应交接点。
 
-交付物：对一个 `launch → residency → global load/TMA → shared → async MMA → global store → remote consumer → storage reuse` 流水标出 participant、readiness、atomicity、completion、visibility、ownership 与 lifetime 分别由谁保证，并解释为什么其他机制不能直接替代它。
+实验：写 global-load dependency chain，用 Nsight Compute 观察 active/eligible/issued warp 与 scoreboard/pipeline stall；实现 shared tile publication、atomic aggregation 与双缓冲 async copy；最后为 PDL、stream-ordered allocation 和可用的 multi-GPU operation 标出 launch-ready、locally-complete、destination-visible、notified 与 reusable 等时间点。
+
+交付物：画出 `submission → residency → global load/TMA → shared stage → async MMA → global store → downstream/remote consumer → storage reuse` 的 tile handoff ledger，写清每张 completion receipt 由谁签发、它携带什么 memory contract、还缺哪条 ownership edge。
 
 ## 第 2 阶段：ISA 与指令流
 

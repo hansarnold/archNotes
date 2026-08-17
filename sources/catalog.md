@@ -182,7 +182,7 @@ TPU v1 用于研究 first-generation inference ASIC、software-managed memory、
 - NVIDIA NCCL stream semantics：<https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/streams.html>
 - NVIDIA NVSHMEM memory ordering：<https://docs.nvidia.com/nvshmem/api/gen/api/ordering.html>
 
-CUDA 资料用于建立 GPU 的 work submission、block/cluster placement、warp residency、instruction issue、execution/memory pipeline，以及 convergence、scoreboard、collective、atomicity、ordering、async completion、work stealing、object lifetime 和 distributed delivery 模型，不应将 NVIDIA 某代 SM 的具体参数泛化为所有 GPU。`mbarrier`、TMA tx-count、WGMMA、Cluster Launch Control、tcgen05、cluster scope 和 proxy/fabric 扩展必须保留 PTX ISA 与 target generation 边界。
+CUDA 资料用于跟踪同一块 tile 从 work submission、block/cluster placement、warp residency 和 instruction issue，经过 shared/async/Tensor pipeline，再到 downstream task、object reuse 与 distributed delivery 的连续交接。每次交接分别检查 progress、completion、visibility 和 ownership；不应将 NVIDIA 某代 SM 的具体参数泛化为所有 GPU。`mbarrier`、TMA tx-count、WGMMA、Cluster Launch Control、tcgen05、cluster scope 和 proxy/fabric 扩展必须保留 PTX ISA 与 target generation 边界。
 
 ### ML 编译器
 

@@ -1,586 +1,456 @@
-# NVIDIA GPU 软硬件流水调度与同步
+# NVIDIA GPU 软硬件流水与同步：一块 Tile 的端到端交接
 
-副标题：从 CPU submission、stream DAG 和 block residency，到 warp issue、memory/Tensor pipeline、retirement 与跨 GPU completion。
+副标题：从 CPU submission、grid admission 和 warp issue，到 TMA、mbarrier、Tensor pipeline、下游任务与 buffer reuse。
 
-最后核对日期：2026-08-12。
+结构重构日期：2026-08-17。技术资料最后核对日期：2026-08-12。
 
-同步不是悬在 GPU 流水之外的一串 API。它回答的是：
+这篇文章只有一个主角：**一块 tile**。
 
-> 一项 work、一个 block、一组 lanes、一条 instruction、一次 memory transaction 或一个外部 consumer，走到流水某个 gate 时，凭什么可以继续？
+它起初位于 producer buffer，随后被某条 CUDA stream 上的 kernel 接收；进入 SM 后，由 producer threads 搬入 shared memory；async engine 或 Tensor pipeline 接手其中一段工作；consumer 使用结果；最后，另一个 kernel、CPU 或 remote GPU 继续消费，storage 才能复用。
 
-完整的同步协议至少要定义八件事：
+沿途会遇到 scoreboard、barrier、mbarrier、fence、atomic signal、semaphore、event 等机制。但这些名词不是章节主线。它们只是不同交接点签发的不同“凭证”。
 
-```text
-(participants, condition, wait mode, memory order,
- scope, phase, ownership/lifetime, forward-progress premise)
-```
+> **同步的本质，是一个独立推进的 agent 在把数据、完成状态或资源所有权交给另一个 agent 时，证明后者现在可以继续。**
 
-- **participants**：谁必须参加，lane、warp、CTA、cluster、grid、stream、host thread 还是 remote PE；
-- **condition**：等 operand ready、pipeline capacity、全部到齐、value 改变、transaction 完成还是 timeline 达标；
-- **wait mode**：stall、poll、suspend、arrive-and-continue，还是仅建立 dependency edge；
-- **memory order**：只管控制流，还是还建立 atomicity、ordering、visibility；
-- **scope**：影响 block、cluster、device、system，还是某个 communicator/team；
-- **phase**：一次性 completion，还是需要 token/parity 的 reusable protocol；
-- **ownership/lifetime**：buffer、barrier storage、allocation 或 external resource 何时能复用；
-- **forward progress**：producer 是否保证能被调度，等待会不会把它需要的资源全部占住。
+一次完整交接必须回答四个问题：
 
-因此本章不按 scoreboard、barrier、fence 等名词逐个罗列，而是沿两条嵌套流水向下走：
+1. **Progress**：producer 和 required participants 最终能获得调度机会吗？
+2. **Completion**：consumer 等到的究竟是哪项工作完成？
+3. **Visibility**：consumer 观察 completion 后，能按正确 scope/proxy 读取 payload 吗？
+4. **Ownership**：consumer 用完以前，storage 会不会被覆盖、释放或进入下一 phase？
 
-1. **software work pipeline**：CPU submission → context → stream/graph DAG → grid admission → downstream task；
-2. **hardware execution pipeline**：block/cluster placement → warp residency → eligibility/issue → execution/memory/async engine → completion/retirement。
-
-同步还会额外建立第三张图：**memory ordering、resource ownership 与 object lifetime graph**。正确性来自三张图一致，而不是“时间上看起来先后发生”。
+participants、scope、phase/generation 是这四份证明的参数；wait mode 与等待时持有的硬件资源，则决定协议的性能与 forward progress。
 
 ---
 
-## 1. 总图：一项 GPU work 怎样穿过软硬件流水
+## 1. 先看完整旅程：一块 tile 会被交接多少次
+
+### 1.1 端到端路线
 
 ```mermaid
 flowchart LR
     subgraph SW["Software work pipeline"]
-        CPU["CPU thread"] --> API["CUDA runtime / driver"]
-        API --> CTX["Context / device queue"]
-        CTX --> DAG["Stream / graph dependencies"]
-        DAG --> GRID["Grid admitted"]
+        CPU["CPU / upstream producer"]
+        DAG["Stream or graph dependency"]
+        GRID["Grid admitted"]
+        NEXT["Downstream stream / host"]
     end
 
-    subgraph HW["Hardware scheduling pipeline"]
-        GRID --> PLACE["Block / cluster placement"]
-        PLACE --> RES["Resident active warps"]
-        RES --> ELIG{"Eligible?"}
-        ELIG -->|yes| ISSUE["Scheduler select / issue"]
-        ELIG -->|no| WAIT["Dependency / barrier / resource wait"]
-        WAIT --> ELIG
+    subgraph SM["SM scheduling pipeline"]
+        PLACE["CTA / cluster resident"]
+        WARP["Producer warp eligible"]
+        ISSUE["Load or async issue"]
+        CONS["Consumer warp eligible"]
     end
 
-    subgraph EX["Execution and completion"]
-        ISSUE --> PIPE["Arithmetic / Tensor / memory / async pipeline"]
-        PIPE --> DONE["Result or transaction complete"]
-        DONE --> RET["Warp / block / grid retirement"]
-        RET --> NEXT["Event / host / stream / remote consumer"]
+    subgraph DATA["Data and execution pipeline"]
+        GMEM["Global-memory tile"]
+        ASYNC["Copy / TMA engine"]
+        SMEM["Shared-memory stage"]
+        TENSOR["Tensor / arithmetic pipeline"]
+        OUT["Output tile"]
     end
+
+    CPU -->|"event / stream edge"| DAG
+    DAG --> GRID
+    GRID --> PLACE --> WARP --> ISSUE
+    DAG -.->|"payload dependency satisfied"| GMEM
+    GMEM --> ASYNC --> SMEM
+    ISSUE -.->|"submits work"| ASYNC
+    SMEM -.->|"completion receipt"| CONS
+    CONS --> TENSOR
+    TENSOR --> OUT -->|"kernel completion / event"| NEXT
 ```
 
-### 1.1 一组不能混用的时间点
+图中实际上有三条相互关联、但不能混为一谈的链：
 
-| 时间点 | 含义 | 常见误解 |
-| --- | --- | --- |
-| submitted | host 已把 work 交给 runtime/driver | 不等于 device 已开始 |
-| admitted / launched | work 已被允许进入 device execution | 不等于所需数据已 ready |
-| resident | block/warp context 已占用 SM resource | 不等于 warp 当前可 issue |
-| active | warp 尚未退出 | 不等于 eligible |
-| eligible | 下一条 instruction 的 dependency 与目标 path 当前允许 issue | 不等于本周期被选中 |
-| issued | scheduler 本周期选择并发出了 instruction | 不等于 operation 已完成 |
-| locally complete | issuing context 可以越过相应 completion gate | 不一定等于 remote visible |
-| visible | 指定 scope/proxy/consumer 可以按协议观察 result | 不等于 resource 已释放 |
-| retired | warp/block/grid 的 architectural work 已结束 | 仍要看 downstream task 与 object lifetime |
-| reusable | 最后一位合法 user 已完成，storage/permit 可交给下一 phase | 不等于只是 producer 已完成写入 |
+- **work chain**：task 什么时候允许进入，CTA/warp 什么时候得到执行资源；
+- **data chain**：payload 什么时候完成搬运或计算，什么时候对 consumer 可见；
+- **ownership chain**：谁当前可以写/读某个 stage，什么时候可以覆盖或释放。
 
-### 1.2 公开模型的边界
+时间上“producer 好像先执行了”不能代替其中任何一条 edge。
 
-本章使用 NVIDIA 公开 programming、PTX 与 profiler model。它足以解释 correctness、主要 stalls 与 pipeline design，但不是完整 RTL：
+### 1.2 八次核心交接
 
-- PTX 是 virtual ISA，SASS 才是 target-specific machine instruction；
-- fetch/decode/dispatch 深度、scheduler 数量、dual issue 与 execution port 会随 generation 改变；
-- scoreboard encoding、arbitration、cache coherence implementation 与 firmware policy 并未全部公开；
-- stream priority、concurrent kernels 与 PDL overlap 都不能当成强制 preemption/并发保证；
-- Ampere `cp.async`、Hopper TMA/WGMMA/cluster、Blackwell `tcgen05`/Tensor Memory 必须保留 target-generation 边界。
+| # | 交接 | 主要凭证 | 它没有自动证明什么 |
+| --- | --- | --- | --- |
+| 1 | CPU/upstream task → kernel task | stream order、event、graph edge | block 已 resident、instruction 已执行 |
+| 2 | device scheduler → CTA/warp | placement、residency、eligible state | tile 数据已 ready |
+| 3 | producer instruction → dependent instruction | scoreboard | 跨 thread visibility 或 rendezvous |
+| 4 | producer threads → shared-memory consumers | barrier 或 release/acquire signal | arbitrary async transaction 已完成 |
+| 5 | producer warp → async/Tensor engine → consumer warp | async group、mbarrier transaction/phase、specialized completion | stage 已经允许下一轮覆盖 |
+| 6 | consumer → next-generation producer | empty/permit、phase/generation | output task 或 remote consumer 已完成 |
+| 7 | kernel → downstream task/host | event、stream/graph edge、host synchronization | remote API 的独立 ownership 已转移 |
+| 8 | local GPU → remote GPU/API | cross-device event、collective completion、quiet/signal、external semaphore | source/destination storage 已无其他 user |
 
-后文使用 generation-neutral 主干，在架构特性出现时单独标注。
+注意：**fence 没有单独出现在“凭证”一列**。Fence 约束 memory effects 的次序，却不产生 participant arrival，也不生成一个可供 consumer 等待的完成事件。它通常是交接协议的一个零件，不是完整协议。
+
+### 1.3 不要混用这些时间点
+
+```text
+submitted
+  → admitted
+  → resident
+  → eligible
+  → issued
+  → locally complete
+  → visible to intended consumer
+  → retired
+  → storage reusable
+```
+
+| 时间点 | 精确含义 |
+| --- | --- |
+| submitted | host/runtime 已接受 command |
+| admitted | work 被允许进入 device execution |
+| resident | CTA/warp context 已占用 SM resource |
+| eligible | warp 的 next instruction 当前允许进入 issue 竞争 |
+| issued | scheduler 已把 instruction 发给目标 path |
+| locally complete | issuing context 已越过相应 completion gate |
+| visible | 指定 scope/proxy 的 consumer 可按协议观察 payload |
+| retired | warp/CTA/grid 的 architectural work 已结束 |
+| reusable | 最后一位合法 user 已释放 storage/permit |
+
+整篇后文，就是跟着同一块 tile 逐一穿过这些时间点。
 
 ---
 
-## 2. Software work pipeline：从 CPU submission 到 grid admission
+## 2. 交接一：CPU 或 upstream task → kernel task
 
-### 2.1 Kernel launch 通常只让 host “提交”，不让 host “等待”
+tile 尚未进入 SM。第一个问题是：负责处理它的 kernel **什么时候可以开始**？
+
+### 2.1 Kernel launch 只提交 work
 
 ```cpp
-kernel_a<<<grid, block, 0, stream_a>>>(...);
-do_cpu_work();  // launch 通常对 host asynchronous
+producer<<<grid, block, 0, stream_a>>>(input);
+consumer<<<grid, block, 0, stream_b>>>(input);
 ```
 
-host return 只说明 launch request 已被接受或排队。以下事件仍然不同：
+两个 host API 返回，并不代表 producer 已完成，也不代表 consumer 可以读取 `input`。Host return 通常只表示 launch request 已提交：
 
 ```text
 host API returns
-  → command reaches device queue
-  → grid is admitted
+  → command reaches a device queue
+  → grid becomes admissible
   → blocks become resident
-  → last block finishes
-  → memory effects satisfy downstream synchronization
+  → instructions issue
+  → last block retires
 ```
 
-CPU 若要消费结果，应等待最窄 completion：某个 event、某条 stream，必要时才是整个 device。`cudaDeviceSynchronize()` 会等待该 device 上更广的 work，容易破坏本可并发的 streams。
+如果 producer 和 consumer 位于同一 stream，stream order 提供 task dependency。如果位于不同 streams，就必须显式建立 edge。
 
-### 2.2 Stream order 是 task dependency，不是 kernel 内 barrier
-
-同一 stream 中的 tasks 按 stream order 建立依赖：
-
-```text
-stream A: H2D copy → kernel A → kernel B → D2H copy
-```
-
-这解决 kernel/copy/task 之间的 admission 与 completion ordering，不会在 kernel A 内生成 `__syncthreads()`。不同 streams 默认没有这种 edge，可能并发，也可能因 resource、context 或实现调度而串行。
-
-还要注意：
-
-- legacy default stream 可能与其他 blocking streams 产生 implicit synchronization；
-- non-blocking stream 可避免一部分 legacy-default-stream coupling；
-- stream priority 是调度 hint，不保证正在运行的 kernel 立刻被抢占；
-- “没有 dependency”只表示允许 overlap，不保证硬件资源足以并发。
-
-### 2.3 Event 与 graph edge 把 dependency 暴露给 scheduler
+### 2.2 Event 是 task completion receipt
 
 ```cpp
-kernel_a<<<grid, block, 0, stream_a>>>(...);
-cudaEventRecord(done_a, stream_a);
+producer<<<grid, block, 0, stream_a>>>(input);
+cudaEventRecord(input_ready, stream_a);
 
-cudaStreamWaitEvent(stream_b, done_a);
-kernel_b<<<grid, block, 0, stream_b>>>(...);
+cudaStreamWaitEvent(stream_b, input_ready);
+consumer<<<grid, block, 0, stream_b>>>(input);
 ```
 
-event record 捕获 stream A 到该点的 work；stream B wait 建立 device-visible task edge。host 可以 query/synchronize event，但不必为了 A→B dependency 自己阻塞。
+```mermaid
+flowchart LR
+    A0["stream A: producer"] --> A1["record input_ready"]
+    A1 --> E(("event receipt"))
+    E --> B0["stream B: wait"] --> B1["consumer"]
+    CPU["CPU"] -.->|"enqueue only"| A0
+```
 
-CUDA Graph 把同类关系显式化成 node DAG。普通 edge 通常表示 downstream node 等 upstream completion；conditional node、programmatic edge 等扩展还可表达 data-dependent control 或更细的 launch point。Graph 优化不能改变应用声明的数据依赖。
+这次交接的四份证明是：
 
-### 2.4 Stream memory wait/write 是 value edge，隐藏依赖要特别小心
+| 证明 | 结论 |
+| --- | --- |
+| Progress | CUDA scheduler 看得见 A→B dependency，不需要 B 在 device 上盲目 spin |
+| Completion | event 表示 stream A 在 record 点之前的 work 已完成到 CUDA contract 要求的阶段 |
+| Visibility | 匹配的 stream/event ordering 使 downstream CUDA work 可以消费 upstream result |
+| Ownership | 若 B 之后还要使用 buffer，free/reuse 必须继续排在 B 完成之后 |
 
-Driver API 的 stream-ordered memory write/wait 可以让 stream 写一个 progress value，或在 value 满足比较条件后继续。它适合 doorbell、timeline 与低开销 interop，但它仍需要：
+event 解决的是 **task-to-task handoff**，不会在 producer kernel 内生成 block barrier，也不会说明 consumer 的某个 warp 已经 resident。
+
+### 2.3 Graph edge 是同一种责任的显式化
+
+CUDA Graph 把 kernel、copy、allocation 等 work 组织成 node DAG：
+
+```text
+allocation → H2D/producer → tile kernel → consumer → D2H/free
+```
+
+它让 scheduler 看见 dependency，因此通常优于 device code 中隐藏的 flag spin。不同 branches 没有 edge，只表示允许 overlap；是否真正并发还取决于 queues、contexts、SM 和 memory resources。
+
+### 2.4 Value edge 需要自己补全 publication contract
+
+Stream-ordered memory write/wait 可以把一个 progress value 当作 doorbell：
+
+```text
+producer writes payload
+  → producer publishes sequence = k
+  → waiting stream observes sequence >= k
+  → consumer task continues
+```
+
+但 value 改变只是 signal。还要确认：
 
 - address 对双方合法可见；
-- producer write 与 payload publication 有正确 ordering；
-- scheduler 能提供 producer forward progress；
-- 不把一个 scheduler 看不见的 spin/value dependency 设计成循环等待。
+- payload write 先于 signal；
+- wait 的 scope/order 足以覆盖 consumer；
+- producer 能获得 forward progress；
+- phase/sequence 不会把旧 signal 当成新 signal。
 
-如果普通 event/graph edge 已能表达 task dependency，优先让 CUDA scheduler 看见它。
+普通 event/graph edge 足够时，优先让 dependency 对 scheduler 可见。
 
-### 2.5 Programmatic Dependent Launch：launch-ready 不等于 data-ready
+### 2.5 这一步对硬件流水的意义
 
-CC 9.0+ 的 PDL 允许 same-stream secondary kernel 在 primary 完全结束前启动 independent preamble：
+software dependency 决定 grid 能否进入后续 admission 竞争。它不是 SM 内 stall：consumer grid 尚未进入 SM 时，不存在它的“barrier stall”或“scoreboard stall”。
 
-```text
-primary blocks trigger launch completion
-        → secondary may launch and run independent work
-primary completes and flushes required results
-        → secondary passes cudaGridDependencySynchronize()
-        → dependent region consumes primary output
-```
-
-primary 的所有 blocks 都应到达 `cudaTriggerProgrammaticLaunchCompletion()`；未显式 trigger 时，在 block 退出处隐式发生。secondary 必须用 programmatic launch attribute，并在 dependent region 前执行 `cudaGridDependencySynchronize()` 或采用等价的正确 data-ready protocol。
-
-PDL overlap 是 opportunistic。correctness 或 progress 不能依赖两个 kernels 必然并发 resident。
-
-### 2.6 Dynamic Parallelism：device-created work 也有 work DAG
-
-CUDA Dynamic Parallelism 允许 device thread launch child grid。parent/child completion 是 properly nested：parent grid 只有在其 children 完成后才算完成。但这不表示：
-
-- child 一定与 parent 并发；
-- parent thread 能在任意位置同步 child 后继续读取其 writes；
-- parent shared/local memory 可传给 child。
-
-CC 9.0+ 的 CDP2 使用 tail-launch 等当前 execution model 组织 child result 的后续消费；不要继续套用已废弃的 device-side `cudaDeviceSynchronize()` 心智模型。device-created streams/events 也只在相应 grid scope 内有效。
-
-### 2.7 Green / Execution Context：先划分 scheduler 能使用的资源
-
-CUDA 13.1 runtime 暴露的 execution context 可以对应 primary context 或 green context。Green context 可被 provision 一组 SM 与 work-queue resource，使关联 streams 的 work 只使用这些资源。
-
-它解决的是 resource isolation/interference，不是 data synchronization：
-
-- 给 latency-sensitive work 留出 SM，可移除“所有 SM 都被另一 kernel blocks 占住”这一阻塞因素；
-- work-queue configuration 可减少不同 execution contexts 误落到同一 queue 造成的 false dependency；
-- 即使 SM/WQ 已分开，独立 work 的并发执行仍不保证；
-- context partition 不会自动在不同 contexts 的 payload 之间建立 happens-before。
-
-Execution-context 级 record/wait event 可以一次捕获或等待该 context 多条 streams 的 work；CPU 也可同步整个 execution context。应根据需要选择 context-wide、stream-wide 或 event-level wait，避免把资源 partition 当成 completion edge。
+反过来，过宽的 `cudaDeviceSynchronize()` 会让 host 等待整个 device，可能在 timeline 上制造本可避免的空洞。正确策略是等待最窄 completion：单个 event、单条 stream，最后才考虑整个 device。
 
 ---
 
-## 3. Placement 与 residency：grid 进来了，谁能同时住在 SM 上
+## 3. 交接二：device scheduler → resident CTA 与 active warp
 
-### 3.1 普通 blocks 必须允许任意顺序执行
+software DAG 已允许 tile kernel 开始。下一张凭证不是 barrier，而是 **residency**：某个 block/cluster 得到了 SM 上的执行资源。
 
-CUDA 可以把一个 grid 的 blocks 以任意顺序分配给 SM：并行、串行或交错都合法。普通 kernel 不能依赖：
+### 3.1 Placement 是 forward-progress 前提
 
-- block 0 一定先于 block 1；
-- 所有 blocks 同时 resident；
-- consumer block spin 时，producer block 一定已经得到资源；
-- 同一 grid 的不同 blocks 天然具有 global rendezvous。
+```mermaid
+flowchart TD
+    GRID["Admitted grid"] --> CHECK{"SM resources available?"}
+    CHECK -->|"no"| QUEUE["CTA remains pending"]
+    QUEUE --> CHECK
+    CHECK -->|"yes"| CTA["CTA becomes resident"]
+    CTA --> ACTIVE["Warps become active"]
+    ACTIVE --> ELIG{"Next instruction eligible?"}
+    ELIG -->|"yes"| ISSUE["Scheduler may select and issue"]
+    ELIG -->|"no"| WAIT["Dependency / barrier / resource wait"]
+    WAIT --> ELIG
+```
 
-这条规则让任意大的 grid 都能在有限 SM 上执行。违反它的常见后果是 residency deadlock：若 resident consumers 占满所有 slots 并等待尚未调度的 producers，program 无法前进。
+一个 CTA 能否 resident，受多种有限资源共同约束：
 
-跨 block phase 通常使用：
-
-1. 拆成 kernel A → kernel B，以 stream/graph edge 作为 global boundary；
-2. 满足条件时使用 cooperative grid sync；
-3. 在 thread-block cluster 内用 cluster-supported synchronization；
-4. persistent kernel 中仅在能够证明 occupancy 与 forward progress 时使用 global atomic/work-queue protocol。
-
-### 3.2 Residency 受资源约束，不只是 block 数量
-
-block 被 placement 到 SM 后，才形成 resident warps。resident block/warp 数受以下资源共同限制：
-
-- registers per thread / block；
+- registers per thread/block；
 - static + dynamic shared memory；
-- threads/warps per block；
-- architecture 的 resident block/warp 上限；
-- barrier、cluster、Tensor Memory 等架构资源；
-- launch bounds、MIG/partition 与实际 device configuration。
+- resident threads/warps/blocks 上限；
+- barrier、cluster 与 generation-specific resources；
+- launch bounds、MIG/partition/context configuration。
 
-occupancy 的真正价值是提供可替换的 ready work。高 occupancy 不是目标本身：
+resident 只说明 context 在场。warp 仍可能因为 operand、barrier、async completion 或 execution-path backpressure 而不 eligible。
 
-```text
-更多 resident warps
-    → 可能增加 eligible candidates，覆盖 latency
-    → 也可能要求减少 registers/shared-memory stages
-    → 反而降低 ILP、reuse 或 async pipeline depth
-```
+### 3.2 普通 blocks 必须允许任意顺序执行
 
-应优化的是 issue efficiency 与有效吞吐，不是只把 occupancy percentage 拉满。
+一个 ordinary grid 的 blocks 可以并行、串行或交错 placement。程序不能依赖：
 
-### 3.3 Barrier 会让 warp 仍 active，却暂时不 eligible
+- block 0 一定早于 block 1；
+- 所有 blocks 同时 resident；
+- consumer blocks 正在 spin 时，producer blocks 必然能被调度；
+- 不同 blocks 天然拥有 global rendezvous。
 
-若一个 CTA 的部分 warps 已到 `__syncthreads()`：
-
-- 它们仍占用 register/shared-memory/residency resource；
-- 它们仍是 active warps；
-- barrier phase 完成前，它们不能发射 barrier 后的 instruction；
-- 同 CTA 的 late warps 与其他 resident CTAs 仍可推进。
-
-如果所有 resident warps 都卡在 barrier、memory dependency 或同一 saturated path，scheduler 就没有 eligible work。多 resident blocks 有时能覆盖 barrier wait；严重 work imbalance 则会把 barrier tail 放大。
-
-### 3.4 Cluster 把“跨 CTA 同时在场”变成显式保证
-
-CC 9.0+ thread-block cluster 的 blocks 被保证 co-scheduled 到同一 GPC，可使用：
-
-- `cluster.sync()` / cluster barrier；
-- distributed shared memory；
-- remote shared-memory access 与特定 remote mbarrier arrival；
-- cluster-level cooperative protocol。
-
-cluster sync 既需要匹配 participant，又要遵守 DSM object lifetime：cluster 内其他 blocks 可能访问本 CTA shared memory 时，不能让 owning block 提前退出或复用 storage。
-
-cluster 不是任意 grid barrier。portable cluster size、occupancy 与支持能力需要查询，cluster scope 也不能自动扩展到整个 device。
-
-### 3.5 Cooperative grid sync 依赖 cooperative launch
-
-`cooperative_groups::grid_group::sync()` 可以让 whole grid rendezvous，但要求 cooperative launch 与相应 launch/residency constraints。它改变了 ordinary-block independence 的前提，因此 runtime 必须确认 launch 可支持。
-
-截至 CUDA 13，Cooperative Groups 不再提供 multi-device grid synchronization。跨 device 应使用 cross-device event、system-scope protocol、NCCL/NVSHMEM 或 external semaphore。
-
-### 3.6 Blackwell Cluster Launch Control：调度控制本身也是 async protocol
-
-Blackwell CC 10.0+ Cluster Launch Control（CLC）允许正在执行的 block/cluster 尝试取消一个尚未开始的 block/cluster，并取得其 index 来完成被取消 work，实现 work stealing。它试图同时保留：
-
-- fixed-work-per-block 的 hardware load balancing 与更好的 priority response；
-- fixed-number-of-blocks/persistent style 的 prologue amortization；
-- tail 阶段由空闲 workers 主动接管剩余 work。
-
-CLC cancellation 不是同步函数立即返回结果，而是一项 asynchronous request：
+典型 residency deadlock：
 
 ```text
-elected thread issues cancellation request
-  → scheduler tries to cancel not-yet-started block/cluster
-  → encoded success/failure + index written to shared result
-  → mbarrier transaction completion flips phase
-  → requester waits/tests phase
-  → async↔generic proxy handoff
-  → decode result; on success execute stolen index
+all resident slots = consumer blocks polling flag
+pending producer blocks = cannot become resident
+flag = can never be produced
 ```
 
-因此它同时涉及四层同步：
+这个 bug 即使 atomic scope、memory order 全部正确，也仍然无法前进，因为失败的是 **Progress proof**。
 
-1. leader/election：避免所有 threads 重复提交；
-2. scheduler state：只能取消尚未开始的 work；
-3. mbarrier tx-count/phase：观察 async cancellation response；
-4. proxy fence + shared result lifetime：避免 async/generic race 与下一 iteration overwrite。
+跨 block phase 的常规解法是 kernel boundary；确实需要同场协作时，使用具有相应 residency contract 的 cluster 或 cooperative grid launch。
 
-失败 request 还有专门的 observation/retry constraint；cluster 版本要确保 cluster blocks 都在场，并让各 CTA 按 cluster scope 管理本地 barrier/result。CLC 是 scheduling primitive，不是 memory fence，也不保证每次 steal 成功。
+### 3.3 Occupancy 不是越高越好
 
-### 3.7 Placement 层的同步选择
+更多 resident warps 可能提供更多 eligible candidates，从而覆盖 latency；但为了提高 occupancy 而减少 registers/shared stages，也可能损害 ILP、reuse 或 async pipeline depth。
 
-| 目标 | 合适机制 | 不合适的替代 |
-| --- | --- | --- |
-| 同 CTA phase | block barrier / named barrier | device fence |
-| cluster 内 CTA cooperation | cluster group/barrier + DSM protocol | 普通 blocks spin flag |
-| ordinary grid global phase | kernel boundary | 假设所有 blocks resident |
-| cooperative grid phase | cooperative launch + grid sync | 在普通 launch 中直接调用 |
-| 长驻 kernel work distribution | atomic queue/sequence + proven residency | 无界 spin lock |
-| Blackwell tail work stealing | CLC cancel request + mbarrier/proxy protocol | 把未启动 block 当成已取消 |
+真正目标是：
+
+```text
+每个 scheduler 周期都有足够的 eligible work
++ execution/memory pipelines 保持有效利用
++ 不为此破坏 locality 与 stage depth
+```
+
+高 active-warps、低 eligible-warps 往往说明许多 resident warps 同时卡在相同 gate。此时继续增加 occupancy 未必有用。
+
+### 3.4 Barrier wait 会继续占用 residency resource
+
+warp 到达 `__syncthreads()` 后：
+
+- 它仍是 active warp；
+- 它继续占用 registers 和 CTA shared memory；
+- barrier phase 完成以前，它不能发射 barrier 后的 instruction；
+- 其他 resident CTA 的 ready warps 仍可能运行。
+
+因此 barrier 既是 correctness mechanism，也会改变 scheduler 能看到的 eligible set。Work imbalance 会让早到 warps 长时间占着资源等待最后到达者。
+
+### 3.5 Cluster 与 cooperative grid 改变 residency contract
+
+Hopper-generation thread-block cluster 保证 cluster blocks 被 co-scheduled，可使用 cluster barrier 与 distributed shared memory。Cooperative grid sync 则要求 cooperative launch 满足 whole-grid synchronization 的限制。
+
+它们不是把 block barrier “扩大一下”那么简单：scope 变大时，required participants、同时在场保证、resource cost 和 deadlock premise 都随之改变。
+
+至此，tile 所在 CTA 已 resident。但某条 producer instruction 能不能发射，还要拿到下一张凭证。
 
 ---
 
-## 4. Warp scheduling：active、eligible、selected 与 issued
+## 4. 交接三：producer instruction → dependent instruction
 
-### 4.1 Warp scheduler 真正在选择什么
+这次交接完全发生在一个 warp 的 instruction stream 内。负责签发凭证的是硬件 dependency tracking，通常概括为 **scoreboard**。
 
-公开 profiler model 可抽象为：
+### 4.1 Active、eligible、selected、issued
 
 ```text
 resident warp
   → active: 尚未退出
-  → eligible: next instruction 当前可以 issue
+  → eligible: next instruction 当前允许 issue
   → selected: scheduler 本周期选择它
-  → issued: instruction 进入相应 dispatch/execution path
+  → issued: instruction 进入目标 execution path
 ```
 
-一个 active warp 要成为 eligible，至少需要：
+eligible 至少要求：
 
-- next instruction 已 fetch/decode；
-- source operands / producer dependencies 已 resolved；
-- warp 没有等待 barrier、memory barrier 或 async completion；
-- 所需 issue/dispatch/function path 当前可接受 work。
+- instruction 已 fetch/decode；
+- source operands 和 producer dependencies 已 resolved；
+- warp 没有等待 barrier、membar 或 async completion；
+- 目标 dispatch/execution path 当前能接受 work。
 
-若多个 warps eligible，而当前 warp 未被选中，Nsight 可能归因为 **not selected**。这通常表示 scheduler 仍有 ready work，不一定是问题。真正浪费 issue slot 的情况是没有 eligible warp。
+多个 warps eligible 而当前 warp 没被选中，profiling 中可能显示 `not selected`。这往往表示 scheduler 仍有 ready work；真正空耗 issue slot 的情况是没有 eligible warp。
 
-### 4.2 Scoreboard 是 readiness gate，不是 thread protocol
+### 4.2 Scoreboard 签发 register-readiness receipt
 
 ```text
-LDG  R8, [R2]       // latency 可变的 producer
+LDG  R8, [R2]       // variable-latency producer
 FFMA R10, R8, R4    // dependent consumer
 ```
 
-scoreboard/dependency tracking 记录未完成 instruction 与 destination/source dependency。R8 ready 前，FFMA 所在 warp 不能把这条 dependent instruction 放入 eligible set；scheduler 可改发其他 ready work。
+```mermaid
+sequenceDiagram
+    participant WS as Warp scheduler
+    participant MEM as L1TEX / memory path
+    participant SB as Scoreboard
+    participant FP as FP pipeline
 
-Nsight 常见归因：
+    WS->>MEM: issue LDG producing R8
+    SB->>SB: mark R8 pending
+    Note over WS,SB: FFMA is active but not eligible
+    MEM-->>SB: R8 result ready
+    SB-->>WS: dependency released
+    WS->>FP: FFMA may now issue
+```
 
-- **long scoreboard**：等待 L1TEX 路径 local/global/surface/texture operation 的 dependency；
-- **short scoreboard**：等待 MIO 路径 dependency，常见于 shared-memory，也可能涉及 special math 或 dynamic branch path。
+Scoreboard 的 contract 很窄：它保护 instruction producer/consumer dependency。它不证明：
 
-scoreboard 能保护 instruction/register dependency，但不保证：
-
-- warp A 与 warp B rendezvous；
-- warp B 何时能看见 warp A 的 shared/global stores；
+- warp A 和 warp B 已 rendezvous；
+- warp B 能看见 warp A 的 shared/global stores；
 - TMA transaction 已完成；
-- stream 或 remote GPU work 已完成。
+- stream task 或 remote operation 已完成。
 
-### 4.3 Independent Thread Scheduling 让 participant set 必须显式
+正因为它足够窄，所以普通同-thread load→use 不需要 programmer 再插 barrier。
 
-Volta 及以后可在 sub-warp 粒度 diverge、yield 与 reconverge。旧代码不能再依赖“同一 warp 永远隐式 lockstep”。
+### 4.3 Load、store 与 drain 的差异
 
-warp collective 的 mask 是 protocol state：
+普通 load 的 data return 最终使 destination register ready，dependent instruction 因 scoreboard release 而重新 eligible。
+
+store 没有 destination register 供后续 instruction直接等待。store/atomic memory effect 可能在 warp 执行到 `EXIT` 后仍需 drain，直到硬件允许释放 execution context。这里的 “instruction issued” 仍不等于 “任意 consumer 已观察 store”。
+
+### 4.4 Dependency latency 与 pipeline throughput 不是一回事
+
+即使所有 operands ready，target path 也可能暂时不接受更多 work：
+
+| 现象 | 主要问题 |
+| --- | --- |
+| long scoreboard | global/local/texture producer result latency 暴露 |
+| short scoreboard | shared/MIO 等 producer dependency |
+| math pipe throttle | arithmetic/Tensor path throughput saturated |
+| LG/TEX/MIO throttle | request queue 或执行路径 backpressure |
+| dispatch stall | dispatcher/resource conflict |
+| barrier | required participants 尚未到齐 |
+| membar | ordering所需的 outstanding memory work 未满足 |
+
+latency 用 ILP、其他 warps 的 TLP 或 async staging 覆盖；throughput saturation 则需要调整 instruction mix、数据复用或 work 分配。给 throughput bottleneck 增加 barrier 不会产生更多执行带宽。
+
+### 4.5 这次交接为什么还不够
+
+假设 producer warp 通过 load 和计算拿到了 tile fragment，并把它写入 shared memory：
+
+```text
+warp A: load global → compute address → store shared
+warp B:                                      load shared → consume
+```
+
+A 的 scoreboard 只知道 A 自身的 instruction dependency。它无法替 B 签发 shared payload 的 visibility receipt，也不知道 B 是否属于本次 tile 的 participant set。于是 tile 来到下一次交接。
+
+---
+
+## 5. 交接四：producer threads → shared-memory consumers
+
+先从传统、同步的 global→shared tile pipeline 开始。它能把 scoreboard、barrier 和 memory ordering 的边界讲清楚。
+
+### 5.1 同步版本的因果链
 
 ```cpp
-// parent_mask 必须由算法在已知 converged 的位置定义。
+// 所有 threads 合作搬运一块 tile。
+smem[idx] = gmem[src_idx];
+__syncthreads();
+consume(smem);
+```
+
+真实链条不是“load，然后 barrier”这么简单：
+
+```text
+LDG result ready in producer register        ← scoreboard
+  → producer can issue shared-memory store
+  → all required producers reach boundary    ← barrier arrivals
+  → their prior shared writes are ordered    ← barrier memory contract
+  → consumers cross boundary
+  → shared loads can consume tile
+```
+
+这里 scoreboard 和 barrier 并非重复等待：前者完成单条 instruction 的 register dependency；后者把多个 threads 的控制进度与 shared communication 汇合起来。
+
+### 5.2 Rendezvous 就是 phase boundary 汇合
+
+```mermaid
+sequenceDiagram
+    participant P0 as Producer warp 0
+    participant P1 as Producer warp 1
+    participant B as CTA barrier phase k
+    participant C as Consumer warp
+
+    P0->>B: shared writes; arrive
+    Note right of P0: P0 remains resident while waiting
+    P1->>B: shared writes; arrive
+    C->>B: arrive / wait
+    B-->>P0: phase k complete
+    B-->>P1: phase k complete
+    B-->>C: phase k complete + required memory ordering
+    C->>C: load shared tile
+```
+
+**rendezvous** 指约定 participants 在同一个 phase boundary 汇合。Reusable barrier 必须区分 phase；否则上一轮 completion 可能被下一轮错误消费。
+
+### 5.3 Participant set 必须显式正确
+
+Volta 及以后的 Independent Thread Scheduling 使 sub-warp divergence 和 reconvergence 更灵活，旧代码不能依赖隐式 warp lockstep。
+
+```cpp
 unsigned members = __ballot_sync(parent_mask, predicate);
 if (predicate) {
     int leader = __ffs(members) - 1;
-    int x = __shfl_sync(members, value, leader);
+    int value = __shfl_sync(members, local, leader);
 }
 ```
 
 必须区分：
 
-```text
-active mask       当前 instruction 的瞬时 active lanes
-participant set   算法要求参加 collective 的逻辑成员
-memory ordering   collective 前后的 memory accesses 怎样被观察
-```
+- current active mask：这条 instruction 的瞬时 active lanes；
+- logical participant set：算法规定必须参加 collective 的 lanes；
+- memory ordering：这些 lanes 通过 memory 通信时需要的顺序保证。
 
-`__activemask()` 只是瞬时 snapshot，不能在目标 branch 内用来反推完整逻辑小组。mask 中所有 non-exited participants 必须执行匹配的 `*_sync` operation；调用 lane 与被读取的 source lane 必须属于合法 participant set。
+vote、shuffle、match 的 `sync` 表示 mask 中 lanes 参加匹配 collective，不能一概理解为 arbitrary memory fence。通过 shared memory 通信时，应使用 `__syncwarp(mask)` 或具有明确 memory contract 的 group synchronization。
 
-### 4.4 Warp collective 传递数据，但通常不提供 memory ordering
+### 5.4 Barrier、fence 与 signal 不是替代关系
 
-| 类别 | 作用 | 典型接口 |
-| --- | --- | --- |
-| vote | all/any/ballot predicate | `__all_sync`、`__any_sync`、`__ballot_sync` |
-| match | 按 value 形成 lane group | `__match_any_sync`、`__match_all_sync` |
-| shuffle | lane registers 直接 exchange | `__shfl*_sync` |
-| reduce | warp reduction + broadcast | `__reduce_*_sync` |
-| elect | 从 participant 中选一个 leader | PTX/CUDA 对应 elect primitive |
-| warp barrier | rendezvous + participating lanes 的 memory ordering | `__syncwarp(mask)` / `bar.warp.sync` |
-
-vote、match、reduce 与 shuffle 的 `sync` 表示匹配 lanes 参与 collective，不应一概理解为 arbitrary memory fence。经 shared memory 通信时，使用 `__syncwarp(mask)` 或具有明确 memory contract 的 group synchronization。
-
-Cooperative Groups 把 participant set 变成 group object。`tiled_partition`、`labeled_partition`、`binary_partition` 的 group formation 本身也是 collective；不能只让 parent group 的不完整分支创建 group。
-
-### 4.5 Eligible 以后还可能被 execution resource 挡住
-
-dependency ready 不等于 target path 无限吞吐。scheduler/dispatcher 还会面对：
-
-- issue width 与 dispatcher conflict；
-- FP/INT/Tensor pipeline oversubscription；
-- L1TEX、LG、TEX 或 MIO queue pressure；
-- shared-memory bank conflict；
-- branch/control path 与 instruction-fetch pressure。
-
-常见 profiler 方向：
-
-| Stall / state | 对应 gate | 第一检查项 |
-| --- | --- | --- |
-| no instructions | fetch/decode | code footprint、I-cache、control flow |
-| not selected | scheduler arbitration | 是否已有足够 eligible work |
-| dispatch stall | dispatch/resource conflict | target path 与 issue mix |
-| math pipe throttle | arithmetic throughput | instruction mix、pipeline saturation |
-| lg/tex/mio throttle | queue/backpressure | memory path、bank conflict、request density |
-| long/short scoreboard | producer result dependency | latency、locality、ILP/TLP |
-| barrier | participants 未到齐 | divergence、work imbalance |
-| membar | memory-ordering work outstanding | fence scope、traffic、in-flight stores |
-| drain | EXIT 后 outstanding operations 未排空 | store/atomic/memory completion |
-
-这里的 backpressure 是硬件 flow control，不是 software barrier。优化时要先判断暴露的是 dependency latency、pipeline throughput，还是 participant wait。
-
----
-
-## 5. Execution、memory 与 async pipeline：issue 以后等的是什么
-
-### 5.1 不同 pipeline 有不同的 completion gate
-
-| 路径 | 典型工作 | completion 怎样被消费 | 常见压力 |
-| --- | --- | --- | --- |
-| FP/INT/SFU | arithmetic、address、special math | destination register ready，解除 dependency | latency、math pipe throughput |
-| Tensor | MMA、WGMMA、tcgen05 | register dependency、async group、mbarrier 或 specialized wait | Tensor pipe saturation、group depth |
-| L1TEX/load-store | global/local/surface/texture | load register ready；store/atomic 另有 outstanding effect | cache/coalescing、long scoreboard、LG/TEX throttle |
-| MIO/shared | shared memory、部分 MIO work | register/shared result ready | bank conflict、short scoreboard、MIO throttle |
-| async copy/TMA | global↔shared、tensor movement | async group 或 mbarrier transaction completion | stage pressure、copy engine、descriptor/proxy ordering |
-| control/sync | branch、barrier、fence | target/participants/memory operations 满足条件 | branch resolving、barrier、membar |
-
-要分清：
-
-- **latency**：一次 operation 到 dependent consumer 可继续需要多久；
-- **throughput**：pipeline 每周期可接受/完成多少 work；
-- **queue depth**：允许多少 work in flight；
-- **completion surface**：结果通过 register scoreboard、group counter、mbarrier、event 还是 remote signal 暴露。
-
-GPU 用同 warp ILP、其他 warp TLP 与 asynchronous staging 覆盖 latency。
-
-### 5.2 普通 load 的 completion 仍落回 scoreboard
-
-```text
-warp issues LDG
-  → address generation / coalescing
-  → cache and memory hierarchy
-  → data returns to destination registers
-  → scoreboard marks result ready
-  → dependent arithmetic becomes eligible
-```
-
-这能保护同一 instruction stream 的 register use，却不能推导另一个 warp 何时能读取 producer 写入的 shared/global payload。
-
-store 通常没有 destination register 供下一 instruction 等待，但 memory effect 可能仍 outstanding。warp 执行 `EXIT` 后也可能经历 drain，等 store/atomic/memory operation 到达允许释放 execution context 的阶段。
-
-### 5.3 Shared-memory cooperation 是跨 thread communication
-
-```text
-warp A: compute tile → store shared
-warp B:                         load shared → consume
-```
-
-warp A 的 scoreboard 只知道 A 自身 register/instruction dependency，无法代表 warp B 的 participant、visibility 与 phase。正确协议需要：
-
-- `__syncwarp`、block/cluster barrier；或
-- producer/consumer named barrier / mbarrier；或
-- scoped atomic release/acquire ownership flag。
-
-shared-memory bank conflict 是 memory-path serialization，不是缺 barrier；缺 barrier 则是 correctness protocol 不完整。两者可能同时出现，但诊断方向不同。
-
-### 5.4 `cp.async` 与 TMA 把搬运从普通 register chain 中拆出
-
-同步 copy 常形成：
-
-```text
-global load → register dependency → shared store → barrier → compute
-```
-
-async pipeline 改成：
-
-```text
-issue copy for tile k+1
-  → compute tile k
-  → wait copy completion
-  → transfer stage ownership
-  → consume tile k+1
-```
-
-Ampere-style `cp.async` 可用 per-thread async groups：
-
-```text
-issue cp.async operations
-  → cp.async.commit_group
-  → keep later groups in flight
-  → cp.async.wait_group N / wait_all
-```
-
-一个 issuing thread 的 group wait 不是 CTA rendezvous。若多个 lanes 共同写 shared tile，group completion 之后仍可能需要 warp/CTA ownership handoff。
-
-Hopper TMA 可由一个 elected thread 发起较大 tensor movement，并用 mbarrier tx-count/phase 报告某些 direction 的 completion；另一些 bulk directions 使用 bulk async-group completion。不能把所有 TMA direction 都简化成同一个 wait primitive。
-
-### 5.5 mbarrier 把 software arrival 与 async transaction 放进同一 phase
-
-一个 shared-memory mbarrier object 可抽象为：
-
-```text
-mbarrier phase
-  expected arrivals
-  pending arrivals
-  expected/pending transaction count
-```
-
-当前 phase 只有在 required arrivals 与被跟踪 async transactions 都满足后才 complete。常见操作：
-
-| 操作 | 作用 |
-| --- | --- |
-| init | 建立 expected arrival count 与初始 phase |
-| expect_tx | 声明本 phase 需要跟踪的 async transaction amount |
-| arrive / arrive_drop | software participant 到达；drop 还改变后续 phase expectation |
-| complete_tx | async operation 完成时偿还 transaction count |
-| test_wait / try_wait | 按 token/parity 检查或等待 phase completion |
-| inval | object storage 改作他用前使其失效 |
-
-两种欠账不要混淆：arrival count 跟踪 software participants，tx-count 跟踪 asynchronous work，TMA 场景常以 bytes 表示 transaction amount。
-
-### 5.6 WGMMA 与 tcgen05 让 async completion 进入 Tensor pipeline
-
-Hopper WGMMA 使用 warpgroup-level asynchronous operation：
-
-```text
-wgmma.fence
-  → wgmma.mma_async...
-  → wgmma.commit_group
-  → independent work / more groups
-  → wgmma.wait_group N
-```
-
-这里分别涉及 input ordering、group submission 与 result completion，不能用一个普通 `__syncthreads()` 代替。
-
-Blackwell `tcgen05`/Tensor Memory 又引入 architecture-specific allocation、access、pipelined instruction 与 completion rule；可以通过 mbarrier 或 specialized wait 等路径观察完成。Tensor Memory permit 的 allocation/relinquish 还属于 resource ownership/lifetime 问题。
-
-这些机制必须按对应 PTX target 阅读。PTX 中出现同名 `wait_group` 不表示 participant、memory space 与 completion guarantee 完全相同。
-
-### 5.7 Completion object 的统一视图
-
-| Completion object | 跟踪什么 | 主要 observer |
-| --- | --- | --- |
-| scoreboard | instruction producer result / operand readiness | warp scheduler 与 dependent instruction |
-| async group | issuing context 提交的一批 async operations | issuing thread/warp/warpgroup |
-| barrier | participant arrival | warp/CTA/cluster/grid group |
-| mbarrier | reusable phase + arrivals + transactions | participants 与 async engine |
-| atomic value | shared state transition / sequence | scope 覆盖的 threads |
-| CUDA event | stream record 点之前的 task completion | host 或 wait stream |
-| external timeline | cross-API monotonically increasing progress | imported API/device/process |
-| remote signal/collective | delivery/progress 或 communicator phase | PE/rank/team |
-
-高性能 tiled kernel 经常同时使用其中三到五种；关键是避免重复等待，也不要遗漏某个 responsibility。
-
----
-
-## 6. Memory model：atomicity、ordering、visibility 与 notification
-
-### 6.1 “数据好了”至少包含四个问题
-
-| 问题 | 负责机制 |
-| --- | --- |
-| 对同一 state word 的修改会不会撕裂/丢失 | atomicity / atomic RMW |
-| producer 的 payload stores 必须排在 signal 之前吗 | release/fence ordering |
-| consumer 观察 signal 后能否读取 payload | matching acquire + scope |
-| consumer 怎样知道现在可以检查 | polling、wait/notify、barrier、event、semaphore |
-
-只回答其中一项通常不构成完整 communication protocol。
-
-### 6.2 Atomicity 不自动等于 publication
-
-Legacy `atomicAdd`、`atomicCAS` 等提供指定 scope 的 relaxed atomic RMW。它们保证相应 memory object 的原子修改，不自动为其他 non-atomic payload 建立 full fence。
-
-需要发布数据时，优先使用可显式选择 order/scope 的 `cuda::atomic` / `cuda::atomic_ref`：
+考虑一个 subset producer-consumer protocol：
 
 ```cpp
 // producer
@@ -588,666 +458,793 @@ payload = 42;
 ready.store(1, cuda::memory_order_release);
 
 // consumer
-if (ready.load(cuda::memory_order_acquire) == 1) {
-    use(payload);
-}
+ready.wait(0, cuda::memory_order_acquire);
+use(payload);
 ```
 
-release/acquire 只有在 consumer 读到相应 atomic modification，且双方 scope 相互覆盖时，才建立所需 happens-before。block-scope store 与另一个 block 的 device-scope load 并不因“其中一端比较宽”就自动正确。
+这套协议中：
 
-### 6.3 Atomics 还承担 serialization 与 work distribution
+- atomic value 是 consumer 能观察的 signal state；
+- release/acquire 建立 publication relationship；
+- wait 避免 consumer 越过条件；
+- producer 能否运行仍由 residency/scheduling 决定；
+- buffer 何时复用仍需另一条 ownership edge。
 
-常见用途：
+单独 fence 只有 ordering，没有 signal：
+
+```text
+producer: write payload → fence → ???
+consumer:                    不知道何时继续
+```
+
+单独 barrier 有 participant rendezvous，却未必代表某项独立 async engine transaction 已完成。选择机制时应先问交接责任，而不是问“哪个 API 更强”。
+
+Release/acquire 只有在 consumer 观察到相应 atomic modification、并且双方 scope 能互相覆盖时，才建立需要的 happens-before。Block-scope publication 不能拿去支持另一个 block 的 consumer。`__threadfence_block()`、`__threadfence()`、`__threadfence_system()` 分别扩大 ordering scope，但仍不会自动创建 signal。
+
+`volatile` 主要约束 compiler 对 access 的处理，不提供 atomicity 或 release/acquire；cache operator 影响数据路径和性能，也不能代替 synchronization contract。
+
+### 5.5 Atomic 还可以交接 counter、queue 与 ownership
+
+Atomic RMW 保证同一 state word 的修改不撕裂或丢失；是否发布旁边的 non-atomic payload，仍取决于 memory order 和 scope。典型用途包括：
 
 - counter、reference count；
 - CAS state transition / lock；
 - queue head/tail、work index；
 - monotonic sequence / doorbell；
-- atomic wait/notify protocol。
+- atomic wait/notify。
 
-同一 hot location 的 contending RMW 必须 serialization，但不是“一次 atomic 锁住整个 GPU”。可用 warp aggregation、per-block counters、sharding 与 hierarchical reduction 降低热点。
+同一 hot location 上的 contending RMW 必须 serialization，但不是“一次 atomic 锁住整个 GPU”。Warp aggregation、per-CTA counters、sharding 和 hierarchical reduction 可以减少热点。
 
-GPU spin lock 要特别小心：waiters 仍占 resident execution context，锁 owner 或 producer 若无法获得 execution resource，就会造成 progress failure。很多 task dependency 更适合 stream/event/graph，而不是 device spin。
+GPU spin lock 还要单独证明 forward progress：waiters 会继续占用 resident execution context；如果 lock owner 或生产 flag 的 CTA 无法得到资源，即使 atomic protocol 的 order/scope 正确也会 deadlock。Scheduler 可见的 task dependency 通常更适合交给 stream/event/graph。
 
-`atomic::wait` 可以比手写 tight polling 提供更合适的 value wait abstraction；`notify_one/all` 是唤醒提示，不替代修改 value 与正确 release/acquire。
+### 5.6 Named barrier 与 subset cooperation
 
-### 6.4 Fence 排序当前 thread 的 memory effects，不让 participants 到齐
+Full-block `__syncthreads()` 最清晰，但 producer/consumer 只涉及部分 warps 时，named/numbered barrier 或 `cuda::barrier` 可以表达：
 
-Fence 有两条主要轴：
+- fixed subset participant count；
+- producer arrive 后继续独立工作；
+- consumer 在真正使用 tile 前 wait；
+- reusable phase 与可选 reduction。
 
-- semantic/order：acquire、release、acq_rel、SC 等；
-- scope：CUDA C++ 常用 block、device、system；PTX 还显式提供 CTA、cluster、GPU、system 等 target scope。
-
-```cpp
-cuda::atomic_thread_fence(order, scope);
-__threadfence_block();
-__threadfence();
-__threadfence_system();
-```
-
-单独 fence 没有 participant count，也不产生可供 consumer 等待的 signal：
-
-```text
-producer: write payload → fence → ???
-consumer:                    不知道何时读取
-```
-
-通常还要搭配 atomic flag、barrier、event 或通信 primitive。很多时候 release store / acquire load 已包含需要的 ordering，无需再叠加 widest fence。
-
-### 6.5 Proxy fence 解决不同 memory access method 的交接
-
-PTX 把 generic、async、tensormap、alias、fabric 等 access method 抽象为不同 memory proxy。对同一 location 跨 proxy 访问时，普通 thread fence 不一定建立所需 ordering。
-
-典型 TMA handoff：
-
-- generic thread 先写 source，随后 async proxy 读取：需要该 instruction contract 要求的 release/proxy handoff；
-- async copy 写 destination，consumer 等 completion 后 generic load：completion path 通常包含规定的 async→generic visibility，但仍需按具体 instruction/mbarrier wait 观察；
-- TensorMap descriptor 被 generic path 修改后交给 tensormap proxy：使用对应 tensormap proxy fence/copy-fence rule。
-
-高层 CUDA/CUTLASS primitive 可能封装这些操作；手写 PTX 时必须逐条确认。
-
-### 6.6 Memory synchronization domain 是 fence interference control
-
-Hopper memory synchronization domains 可把无关 traffic 分到不同 domain，减少 device/system fence 被其他 remote/local transactions 拖累。它不是一个新的 rendezvous，也不是跨 domain ordering 的免费通道。
-
-当两个 operations 需要跨 domain ordering 时，必须按 CUDA domain rule 使用足够 scope 的 synchronization；不能因为 traffic 被隔离就忽略 happens-before。
-
-### 6.7 `volatile`、cache 与 fence 不是同义词
-
-- `volatile` 主要约束 compiler 对 access 的处理，不提供 atomicity 或 release/acquire；
-- fence 规范的是 ordering/visibility relation，不等于简单“flush all cache”；
-- cache operator、coalescing、L1/L2 behavior 影响性能与数据路径，但不能替代 synchronization contract；
-- 数据竞争是 memory-model correctness 问题，不能用“profiler 中最后写入似乎可见”证明正确。
+这种 split arrive/wait 已经开始像流水，但 tile 搬运本身仍经普通 register chain。为了让 copy 和 compute 真正重叠，需要把工作交给 async mechanism。
 
 ---
 
-## 7. Rendezvous、phase 与 coordination object
+## 6. 交接五：producer warp → async engine → consumer warp
 
-### 7.1 Barrier 的核心是 phase rendezvous
+这是整条主线的核心：tile 暂时离开普通 warp register dependency chain，交给异步搬运或计算机制；之后再通过专门 completion receipt 交回 consumer。
 
-```text
-phase k:
-  participant 0 arrives ─┐
-  participant 1 arrives ─┼→ required arrivals satisfied
-  participant 2 arrives ─┘        → phase k complete
-                                  → participants enter k+1
-```
+### 6.1 从同步 copy 到 async copy
 
-**rendezvous** 就是在约定 phase boundary 汇合。传统 barrier 把 arrive 与 wait 合在一起；split arrive/wait 允许先登记 arrival，再做 independent work，之后才等待 phase completion。
-
-barrier correctness 依赖：
-
-- participant set 与实际到达者一致；
-- 所有 required participants 最终能获得 forward progress；
-- reusable barrier 的 phase/token/parity 不被上一轮污染；
-- barrier memory semantics 覆盖实际通信 scope/proxy。
-
-### 7.2 Warp、CTA、cluster、grid barrier 是不同 residency contract
-
-| Scope | 典型接口 | 依赖的执行保证 |
-| --- | --- | --- |
-| warp/subgroup | `__syncwarp(mask)`、tile/group sync | 正确 lane mask/participant |
-| CTA/block | `__syncthreads()`、block group sync、PTX `barrier.sync` | threads 同属一个 resident CTA |
-| cluster | cluster group/barrier | cluster blocks co-scheduled |
-| grid | cooperative `grid.sync()` | cooperative launch constraints |
-| task DAG | stream/event/graph edge | runtime scheduler 可见的 work dependency |
-
-scope 越大，既有成本通常越高，progress premise 也越强。只需 warp/CTA 的协议不要升级成 device/system-wide wait。
-
-### 7.3 Named barrier 允许 subset、arrive/sync 与 reduction
-
-CTA 的 numbered/named barriers 可表达：
-
-- fixed participant count；
-- producer `bar.arrive` 后继续，consumer `bar.sync` 等待；
-- `bar.red.popc/and/or` 在 rendezvous 时完成 predicate reduction；
-- `__syncthreads_count/and/or` 完成 full-block barrier + collective result。
-
-named barrier resource 数量有限，participant count 与 warp participation 规则必须匹配。producer 连续多次 arrive、或在 phase reset 前错误复用同一 barrier，会破坏协议。
-
-### 7.4 mbarrier 更适合 subset、phase 与 async transaction
-
-mbarrier 与 numbered barrier 的差别不只是“新旧版本”：
-
-| 维度 | Numbered CTA barrier | Shared-memory mbarrier |
-| --- | --- | --- |
-| 存放 | SM barrier resource | shared-memory object |
-| participant | CTA warps/threads，受 instruction 规则约束 | CTA subset；特定 cluster remote arrival |
-| arrive/wait | 支持部分 split pattern | token/parity phase model 更灵活 |
-| async transaction | 不作为主要 transaction counter | 可跟踪 async completion/tx-count |
-| lifetime | barrier resource 自动复用 | init → phases → inval → storage reuse |
-
-若只需 full-block rendezvous，`__syncthreads()` 通常最清楚。mbarrier 的价值出现在 subset、arrive/wait overlap、TMA/bulk transaction completion 与多 stage phase protocol。
-
-### 7.5 Signal 是动作，载体决定语义
-
-“signal”可能由不同 object 承载：
-
-| 载体 | Consumer 怎样观察 | 语义来源 |
-| --- | --- | --- |
-| atomic flag/sequence | acquire load、wait 或 poll | atomic order + scope |
-| mbarrier arrival/complete-tx | token/parity wait | barrier phase contract |
-| CUDA event | stream wait、host query/sync | CUDA task ordering |
-| stream memory write | stream memory wait | Driver API value semantics |
-| external semaphore | imported wait | external API/timeline contract |
-| NVSHMEM signal | remote wait/test | NVSHMEM ordering/delivery contract |
-
-所以“signal 前需不需要 fence”没有统一答案：release atomic、event、mbarrier complete-tx 和 external semaphore 各有自己的 publication contract。
-
-### 7.6 Latch、barrier、semaphore 与 pipeline 都能 wait，但状态机不同
+同步版本：
 
 ```text
-latch:      count → 0，一次打开后不复用
-barrier:    N arrivals → phase complete → next reusable phase
-semaphore:  count > 0 → acquire consumes permit
-timeline:   value >= target → waiter passes，不回退
-pipeline:   empty → filling → full → consuming → empty
+global load → producer register → shared store → CTA barrier → compute
 ```
 
-libcu++ 提供 scoped atomic、barrier、latch、semaphore 与 pipeline abstractions。选择依据是状态机，不是 API 名字有没有 `wait()`。
+流水化版本：
 
-semaphore 适合 bounded resource/permit 与 timeline progress；barrier 适合集体 phase；latch 适合 one-shot completion；pipeline 适合 stage ownership 与 async producer/consumer overlap。
+```text
+issue copy for tile k+1
+  → compute tile k
+  → wait until tile k+1 copy completes
+  → acquire full stage
+  → consume tile k+1
+```
+
+Ampere-style `cp.async` 使用 issuing thread 的 async groups：
+
+```text
+cp.async...
+  → cp.async.commit_group
+  → later groups remain in flight
+  → cp.async.wait_group N / wait_all
+```
+
+一个 thread 的 async-group wait 只证明相应 group 的 completion，不自动让整个 CTA rendezvous，也不自动证明 stage 已经从所有 consumers 手中收回。
+
+### 6.2 TMA 把提交者、搬运者和消费者分开
+
+Hopper TMA 常由一个 elected thread 提交较大 tensor movement。真正写 shared memory 的是 async proxy/engine；多个 consumer warps 稍后读取结果。
+
+```mermaid
+sequenceDiagram
+    participant P as Producer / elected thread
+    participant M as Shared mbarrier phase k
+    participant T as TMA async engine
+    participant C as Consumer warpgroup
+
+    P->>M: initialize phase / expect transaction bytes
+    P->>T: issue TMA for tile k
+    Note over P,T: producer can continue independent work
+    T->>T: move global tile into shared stage
+    T-->>M: complete transaction bytes
+    C->>M: wait/test phase k
+    M-->>C: phase complete
+    C->>C: acquire and consume shared tile
+```
+
+这次交接至少包含四个不同责任：
+
+1. **Election**：谁只提交一次 TMA；
+2. **Source handoff**：async proxy 能否合法观察 descriptor/source state；
+3. **Transaction completion**：这块 tile 的全部 tracked bytes 是否搬完；
+4. **Destination handoff**：generic consumers 等待后能否读取 shared result。
+
+一个 `__syncthreads()` 无法独自替代这四项。
+
+### 6.3 mbarrier 是 phase receipt 加 transaction ledger
+
+shared-memory mbarrier 可抽象成：
+
+```text
+phase identity
++ expected / pending software arrivals
++ expected / pending async transaction count
+```
+
+| 操作 | 在交接中的作用 |
+| --- | --- |
+| init | 定义 expected arrivals 与初始 phase |
+| expect_tx | 登记本 phase 预期的 async transaction amount |
+| arrive / arrive_drop | software participant 到达；drop 还改变后续 expectation |
+| complete_tx | async engine 偿还 transaction 欠账 |
+| test_wait / try_wait | 按 token/parity 观察 phase completion |
+| inval | storage 改作他用前结束 object lifetime |
+
+arrival count 和 transaction count 是两本账：前者记录 software participants，后者记录 async work。TMA 场景中的 transaction amount 常按 bytes 计；把 thread count 当 byte count，或者漏记某笔 transaction，都会破坏 completion proof。
+
+### 6.4 Proxy fence 解决“不同访问方法”之间的交接
+
+PTX 把 generic、async、tensormap、fabric 等访问抽象为不同 memory proxies。普通 thread fence 不一定覆盖同一 location 的跨-proxy handoff。
+
+典型检查顺序：
+
+```text
+generic producer modifies source or descriptor
+  → required release / proxy handoff
+  → async proxy consumes it
+  → async engine writes destination
+  → tracked completion reaches mbarrier
+  → consumer performs required wait/acquire
+  → generic consumer reads destination
+```
+
+高层 CUDA/CUTLASS abstraction 可能封装其中部分规则；手写 PTX 时必须按具体 instruction family 确认。不能把“我已经做过 threadfence”当作任意 proxy 都已同步。
+
+### 6.5 Async completion 会怎样影响 warp scheduler
+
+consumer warp 在 wait 前后仍处于 SM residency 中：
+
+- wait condition 未满足时，它可能 active 但不 eligible；
+- producer warp 或其他 CTA 可继续提供 eligible work；
+- stage 太浅时，所有 consumers 可能同时等 copy；
+- wait 太早时，原本可重叠的 independent work 被浪费；
+- copy engine、L1TEX 或 shared path 饱和时，即使 barrier 设计正确也可能吞吐不足。
+
+所谓 async 优化，不是删除 wait，而是把 wait 移到 **首次真正消费 tile 之前的最晚位置**，并在此前安排独立工作。
+
+### 6.6 Tile 再交给 Tensor pipeline
+
+Hopper WGMMA 的 simplified sequence 是：
+
+```text
+shared tile ready
+  → wgmma.fence / required input ordering
+  → wgmma.mma_async...
+  → wgmma.commit_group
+  → independent work or later groups
+  → wgmma.wait_group N
+  → result may be consumed
+```
+
+这里有三个独立时间点：
+
+- input 可以交给 Tensor operation；
+- operations 被组织并提交为 group；
+- result group 已完成到允许消费的阶段。
+
+CTA barrier 只说明 participants 到齐，不能代替 Tensor group completion。反过来，`wait_group` 也不代表其他 warps 已到达共同 phase。
+
+Blackwell `tcgen05`/Tensor Memory 又加入 generation-specific allocation、permit、async operation 与 specialized completion rule。主线仍不变：明确谁提交、谁执行、completion 写到哪里、consumer 等什么、Tensor Memory 何时可以 relinquish；具体 instruction contract 必须按 target PTX 阅读。
 
 ---
 
-## 8. Ownership 与 lifetime：数据 ready 以后，buffer 也未必能覆盖
+## 7. 交接六：consumer → next-generation producer，交还 stage ownership
 
-### 8.1 双缓冲至少需要 full 与 empty 两个方向
+copy complete 只证明 stage 已 **full**。Producer 想覆盖同一个 stage，还需要 consumer 签发 **empty** receipt。
 
-```text
-stage 0: empty → filling → full → consuming → empty
-stage 1:         empty → filling → full → consuming → empty
+### 7.1 双缓冲是双向交接，不是两个 boolean
+
+```mermaid
+stateDiagram-v2
+    [*] --> Empty
+    Empty --> Filling: producer acquires
+    Filling --> Full: copy completion publishes
+    Full --> Consuming: consumer acquires
+    Consuming --> Empty: consumer releases
 ```
 
-只等 “copy complete/full” 仍可能 overwrite：producer 可能在 consumer 使用完 stage 前开始下一轮。完整 bounded pipeline 需要：
-
-- producer 等 empty/acquire ownership；
-- async engine 或 producer 发布 full；
-- consumer 等 full/acquire visibility；
-- consumer 完成后发布 empty/release ownership；
-- phase/generation 区分相同 slot 的不同轮次。
-
-这也是为什么 `cuda::pipeline`、CUTLASS/CuTe stage state 比单个 boolean flag 更自然。
-
-### 8.2 Stream-ordered allocator 把 allocation/free 变成 DAG nodes
-
-`cudaMallocAsync` / `cudaFreeAsync` 定义 allocation 在某条 stream 上何时开始/停止可用：
+完整 bounded pipeline 有两个方向：
 
 ```text
-stream A: mallocAsync(p) → kernel A uses p → event A
-stream B:                            wait A → kernel B uses p → event B
-stream C:                                                     wait B → freeAsync(p)
+producer --full/completion--> consumer
+producer <--empty/release---- consumer
 ```
 
-跨 stream 使用者必须证明：
-
-1. allocation operation 已完成；
-2. 每次 use 都发生在 free 前；
-3. free/reuse 发生在最后一次 use 后。
-
-memory pool 可沿 event dependencies 复用 allocation，也可能在允许 internal dependency 时为了 reuse 插入隐藏 serialization，影响 overlap 与 timing。
-
-### 8.3 Barrier、descriptor 与 Tensor Memory 也有 object lifetime
-
-- mbarrier storage 改作他用前要按规则 invalidation；
-- remote DSM user 结束前，owning cluster block 不能退出；
-- TensorMap descriptor 更新与使用需满足 descriptor/proxy ordering；
-- Tensor Memory allocation permit 要按 tcgen05 lifecycle relinquish；
-- external image/buffer 要先完成 API ownership transfer 才能复用。
-
-completion、visibility 与 lifetime 是三条不同 edge：
+若只有 `full` signal：
 
 ```text
-producer work complete
-  ≠ all consumers have observed payload
-  ≠ all consumers have finished using storage
+producer fills S0 → consumer begins reading S0
+producer immediately refills S0 for next generation
+                    ↑ overwrite race
 ```
 
-### 8.4 Host access 与 Unified Memory 也需要 synchronization
+所以 completion、visibility、lifetime 是三条不同 edge：
 
-Unified Virtual Addressing / Unified Memory 解决 addressability、migration 与平台相关 coherence，不自动建立 CPU↔GPU happens-before。
+```text
+producer operation completed
+  ≠ consumer has observed payload
+  ≠ consumer has finished using storage
+```
+
+### 7.2 两级 pipeline 的重叠时序
+
+```mermaid
+sequenceDiagram
+    participant P as Producer
+    participant S0 as Stage 0
+    participant S1 as Stage 1
+    participant C as Consumer
+
+    P->>S0: fill tile k
+    S0-->>C: full(k)
+    par overlap
+        C->>C: consume tile k from S0
+    and
+        P->>S1: fill tile k+1
+    end
+    C-->>S0: empty(k)
+    S1-->>C: full(k+1)
+    par next overlap
+        C->>C: consume tile k+1 from S1
+    and
+        P->>S0: fill tile k+2 only after empty(k)
+    end
+```
+
+性能瓶颈可以由状态直接读出：
+
+- producer 经常等 empty：consumer 或 Tensor pipeline 较慢；
+- consumer 经常等 full：copy/memory path 较慢；
+- 两边都 ready 但 issue rate 低：execution path/dispatcher throughput 问题；
+- 所有 resident warps 等同一个 phase：stage depth、work balance 或 pipeline partition 不足。
+
+### 7.3 Phase、parity 与 ABA
+
+Reusable object 必须区分 `stage 0, generation k` 和 `stage 0, generation k+2`。只观察一个回到相同值的 boolean，consumer 可能把旧 completion 当成新 completion。
+
+常见 generation encoding：
+
+- barrier token；
+- parity bit；
+- monotonic sequence number；
+- ring index + generation；
+- producer/consumer counters。
+
+phase 不只是 bookkeeping。它是证明“这张 receipt 对应哪一代 tile”的身份信息。
+
+### 7.4 Latch、barrier、semaphore、timeline、pipeline 的状态机不同
+
+| Object | 状态转换 | 最适合表达 |
+| --- | --- | --- |
+| latch | count → 0，打开后不复用 | one-shot completion |
+| barrier | N arrivals → phase complete → next phase | collective rendezvous |
+| semaphore | permit count；acquire 消耗 permit | bounded resource/ownership |
+| timeline | monotonic value ≥ target | progress generations |
+| pipeline | empty → filling → full → consuming → empty | stage ownership + overlap |
+
+它们都有 `wait` 不表示语义相同。选择 object 应先画状态机，再选择 API。
+
+### 7.5 Object lifetime 也是 ownership
+
+不仅 payload buffer 有 lifetime：
+
+- mbarrier storage 在 invalidation/合法结束前不能改作他用；
+- cluster 其他 blocks 仍访问本 CTA 的 DSM 时，owning block 不能退出；
+- TensorMap descriptor 更新和使用需要正确 proxy ordering；
+- Tensor Memory permit 必须按 generation-specific lifecycle relinquish；
+- external buffer 需要完成 API ownership transfer 才能复用。
+
+到这里，tile 已完成 kernel 内计算，shared stages 也被正确归还。下一步是把 global output 交给 kernel 外部的 consumer。
+
+---
+
+## 8. 交接七：kernel → downstream task、host 与 allocator
+
+### 8.1 Kernel retirement 是 task receipt 的来源
+
+一个 warp 执行到 `EXIT`，可能仍需等待 outstanding stores/atomics drain；所有 blocks 完成后，grid 才满足 downstream CUDA task dependency。
+
+```mermaid
+flowchart LR
+    K["kernel K writes output"] --> DRAIN["stores / atomics drain"]
+    DRAIN --> DONE["grid completion"]
+    DONE --> E(("event K_done"))
+    E --> K2["stream B consumer"]
+    E --> HOST["host wait / query"]
+    K2 --> LAST["last consumer done"]
+    LAST --> FREE["freeAsync / pool reuse"]
+```
+
+Kernel 内 `__threadfence()` 不能代替 grid completion，也不会让 host 自动知道可以读取 output。Host 应等待 event/stream/device completion；device downstream task 应通过 stream/graph/event edge 排序。
+
+### 8.2 Stream-ordered allocator 把 lifetime 变成 DAG
+
+```text
+stream A: mallocAsync(p) → producer uses p → event A
+stream B:                                  wait A → consumer uses p → event B
+stream C:                                                             wait B → freeAsync(p)
+```
+
+这张图必须证明：
+
+1. allocation 在第一次 use 前生效；
+2. 每个跨-stream user 都位于 free 之前；
+3. free/reuse 位于最后一个 user 之后。
+
+memory pool 可以沿 dependencies 复用 allocation，也可能为了 reuse 插入内部 dependency，导致 overlap 变化。Allocation address 相同不表示 generation 相同；lifetime edge 仍须显式正确。
+
+### 8.3 Unified Memory 不自动建立 CPU↔GPU happens-before
+
+Unified Virtual Addressing/Managed Memory 解决 addressability、migration 和平台相关 coherence，不等于应用同步。
 
 CPU 读取 GPU result 前通常需要：
 
-- `cudaEventSynchronize` / `cudaStreamSynchronize` / `cudaDeviceSynchronize`；或
-- memcpy completion；或
-- 平台支持且 scope/order 正确的 heterogeneous atomic protocol。
+- event/stream/device synchronization；
+- copy completion；或
+- 平台明确支持、scope/order 正确的 heterogeneous atomic protocol。
 
-Unified Memory 的 concurrent access 能力随 OS、GPU、HMM/ATS 与 interconnect 改变。page migration 不是 signal，CPU page fault 也不能替代应用层同步。
+Page migration 不是 notification，CPU page fault 也不是 kernel completion receipt。
+
+### 8.4 PDL：launch receipt 与 data receipt 可以分离
+
+Programmatic Dependent Launch 允许 same-stream secondary kernel 在 primary 完全结束前运行 independent preamble：
+
+```text
+primary triggers launch completion
+  → secondary may launch independent region
+primary data becomes ready under PDL contract
+  → secondary passes dependency synchronization
+  → dependent region consumes output
+```
+
+这里故意把两张 receipt 分开：
+
+- launch-ready：secondary 可以占用执行资源并做不依赖 primary output 的工作；
+- data-ready：secondary 可以真正消费 primary payload。
+
+把前者当后者会读到未完成数据；把 PDL overlap 当成必然并发则会破坏 progress premise。
 
 ---
 
-## 9. System 与 multi-GPU pipeline：remote completion 比 local completion 多几层
+## 9. 交接八：local GPU → remote GPU 或 external API
 
-### 9.1 跨 device 时间线
+跨 device 后，“完成”会被拆成更多阶段。
 
-```text
-operation posted
-  → source-side issue accepted
-  → operations ordered toward target
-  → source buffer may be reusable
-  → data delivered / destination-visible
-  → remote consumer notified
-  → all ranks complete collective phase
+### 9.1 Remote handoff timeline
+
+```mermaid
+flowchart LR
+    POST["operation posted"] --> ORDER["ordered toward target"]
+    ORDER --> SRC["source-side completion"]
+    SRC --> DELIVER["destination-visible"]
+    DELIVER --> SIGNAL["remote notified"]
+    SIGNAL --> USE["remote consumer uses data"]
+    USE --> REUSE["buffers reusable"]
 ```
 
-不同 API 可能只保证其中一段，不能把 `fence`、`quiet`、event 与 collective completion 互换。
+不同 API 可能只保证其中几步。`fence`、`quiet`、event、collective completion 和 signal 不能只因为都与“等待”有关就互换。
 
-### 9.2 Cross-device event 与 peer atomic
+### 9.2 Cross-device event
 
-`cudaStreamWaitEvent()` 可以让一个 device 的 stream 等另一个 device 上记录的 event，从而建立 scheduler-visible cross-device task edge。
+`cudaStreamWaitEvent()` 可以让一块 GPU 的 stream 等待另一块 GPU 上记录的 event，从而建立 scheduler-visible task edge。它适合 task-level handoff；fine-grained peer atomic 则还要求 peer/native-atomic capability、合法 storage、匹配 scope 和 memory order。
 
-fine-grained peer memory atomic 还要求：
+统一虚拟地址只说明指针空间，不证明 remote atomic/coherence protocol 成立。
 
-- peer access/native atomic capability；
-- storage 对所有 participants 合法；
-- system scope 或其他能够覆盖双方的 scope；
-- 正确 memory order。
+### 9.3 NCCL collective completion
 
-统一虚拟地址本身不能证明 remote atomic/coherence protocol 成立。
+NCCL host call 返回通常只表示 collective 已 enqueue 到 CUDA stream。Output 应通过对应 stream/event completion 判断何时可用。
 
-### 9.3 External semaphore 负责跨 API timeline 与 ownership
+Collective 还要求 communicator/rank participants 和调用顺序匹配。多 stream group operation 可能建立较宽 dependency。NCCL 负责 collective communication，不替代 kernel 内 barrier。
 
-CUDA 可导入 Vulkan/D3D/NvSciSync 等 external semaphore，把 wait/signal enqueue 到 stream：
+### 9.4 NVSHMEM 把 order、delivery、notification 分开
+
+| Primitive | 主要保证 | 不能直接推出 |
+| --- | --- | --- |
+| `nvshmem_fence` | 对目标 PE 的相关 remote updates 排序 | delivery completion、remote notification |
+| `nvshmem_quiet` | 先前相关 operations 完成并在 destination visible | collective rendezvous、自动通知 consumer |
+| signal + wait/test | point-to-point progress notification | 未正确排序的 payload 自动 publication |
+| barrier/team sync | collective synchronization及其规定的 outstanding operations 语义 | kernel 内任意 scope 的同步替代 |
+
+典型 one-sided handoff是：
 
 ```text
-graphics signals value 7
-  → CUDA stream waits 7
-  → CUDA work owns/updates resource
-  → CUDA stream signals 8
+prepare local payload
+  → ordered remote put
+  → ensure required delivery/completion
+  → publish remote signal
+  → remote wait observes generation
+  → remote consumer uses payload
+  → protocol later returns buffer ownership
+```
+
+### 9.5 External semaphore
+
+Vulkan/D3D/NvSciSync 等 external semaphore 把 wait/signal enqueue 到 CUDA stream，用 binary state 或 monotonic timeline value 交接进度：
+
+```text
+graphics signals 7
+  → CUDA waits 7 and owns resource
+  → CUDA updates resource
+  → CUDA signals 8
   → graphics waits 8 and resumes
 ```
 
-binary semaphore 表示 signaled state；timeline semaphore 用单调 value 表示 progress。semaphore synchronization 之外，还要遵守 external resource handle、layout/state 与 ownership-transfer rule。
-
-### 9.4 NCCL collective 是 asynchronous stream work
-
-NCCL collective call 在 host 返回时通常只表示 operation 已 enqueue；device 上 collective 随相应 CUDA stream 异步执行。output 是否可用应通过 stream/event completion 判断。
-
-同一个 NCCL group operation 混合多个 streams 时，会在这些 streams 之间建立较强 dependency/global synchronization point。collective 的参与 ranks、调用顺序与 communicator state 必须匹配，否则可能 hang。
-
-NCCL 解决 collective communication，不替代 kernel 内 CTA barrier，也不等同于所有 remote memory operation 的通用 fence。
-
-### 9.5 NVSHMEM 明确区分 ordering、completion 与 notification
-
-| Primitive | 保证 | 不保证 |
-| --- | --- | --- |
-| `nvshmem_fence` | 对目标 PE 排序相关 remote updates | delivery completion、remote notification |
-| `nvshmem_quiet` | 调用 PE 先前相关 operations 完成并在 destination visible | collective rendezvous、自动通知 remote PE |
-| signal + wait/test | point-to-point progress notification | 任意未排序 payload 自动 publication |
-| barrier/team sync | collective synchronization，并按 API contract 处理 outstanding symmetric operations | kernel 内任意 scope 的替代 |
-
-GPU-side 与 CPU-side NVSHMEM ordering/completion 还各自作用于由相应 side 发出的 communication；host 想等待 GPU-issued operation，要使用 GPU/stream-side completion 再同步相应 CUDA work。
-
-### 9.6 分布式协议的检查顺序
-
-1. communicator/team/PE participant set 是否一致；
-2. local producers 的 writes 是否先于 remote operation；
-3. operation 是 only ordered、source-complete，还是 destination-visible；
-4. remote consumer 通过什么 signal/wait 得知进度；
-5. source/destination buffer 何时能复用；
-6. failure、abort 或 rank loss 如何传播，是否可能永久等待。
+Timeline 达标之外，还要遵守 external resource layout/state、handle lifetime 和 ownership-transfer rule。
 
 ---
 
-## 10. 端到端例子：一个 tile 穿过 Hopper/Blackwell-style pipeline
+## 10. 把整条 pipeline 重放一遍
 
-假设 application 要：
+假设 kernel K 使用两级 TMA→shared→WGMMA pipeline，并把结果交给 stream B。
 
-1. stream A 产生 input；
-2. kernel K 用 TMA/global→shared multi-stage pipeline；
-3. warpgroups 执行 asynchronous matrix operation；
-4. 写 global output；
-5. stream B 或 remote GPU 消费；
-6. allocator 回收 buffer。
-
-### 10.1 软件 work DAG
+### 10.1 Software work DAG
 
 ```text
 mallocAsync(input/output)
-  → producer task in stream A
+  → upstream producer in stream A
   → event input_ready
   → stream K waits input_ready
   → kernel K
   → event K_done
-  ├→ stream B waits K_done → local consumer
-  └→ NCCL/NVSHMEM/external signal → remote consumer
+  ├→ stream B local consumer
+  └→ NCCL/NVSHMEM/external handoff
   → all consumers done
-  → freeAsync / resource reuse
+  → freeAsync / reuse
 ```
 
-这层解决 task admission、kernel boundary 与 allocation lifetime，不描述 kernel 内哪个 warp 搬第几个 tile。
-
-### 10.2 Kernel 内 pipeline
+### 10.2 Kernel 内 tile k 的交接链
 
 ```text
-block/cluster becomes resident
-  → define producer and consumer participant groups
-  → producer acquires empty stage s
-  → elected thread sets mbarrier transaction expectation
-  → issue TMA copy into shared stage s
-  → producer/other stages continue independent work
-  → consumer waits mbarrier phase completion
-  → shared tile is visible to generic consumers
-  → issue WGMMA/tcgen operations
-  → commit/wait async math group
-  → accumulate/store output
-  → consumer releases stage s as empty
-  → next generation reuses s
+CTA becomes resident
+  → producer warp becomes eligible
+  → producer acquires empty stage S[k mod 2]
+  → elected thread prepares mbarrier phase and issues TMA
+  → async engine moves tile while warps do independent work
+  → mbarrier transaction reaches completion
+  → consumer acquires full stage and required visibility
+  → WGMMA input ordering and async operations are issued
+  → Tensor group completion releases result dependency
+  → output store is issued
+  → consumer releases shared stage as empty
+  → store/drain and grid retirement satisfy K_done
 ```
 
-### 10.3 每个 gate 的责任归属
-
-| 流水 gate | 问题 | 机制 |
-| --- | --- | --- |
-| stream K admission | input task 完成了吗 | event/graph/stream edge |
-| block placement | 本 block/cluster 获得 resource 了吗 | runtime/hardware placement；不是 kernel primitive |
-| warp issue | instruction operand 与 target path ready 吗 | scoreboard + scheduler/backpressure |
-| subgroup formation | 哪些 lanes 是 producer/consumer | mask / cooperative group |
-| elected submission | 谁只提交一次 TMA | elect/leader protocol |
-| source handoff | generic producer writes 是否可供 async proxy 读 | required release/proxy fence |
-| TMA completion | 本 tile transaction 全部完成了吗 | mbarrier tx-count/phase 或对应 bulk group |
-| shared visibility | consumer 能否安全 load tile | mbarrier acquire/wait contract |
-| Tensor issue | shared/register inputs 是否满足 WGMMA/tcgen rule | specialized fence + scoreboard/resource gate |
-| Tensor completion | async math group result 可消费了吗 | commit/wait group、mbarrier 或 specialized wait |
-| stage reuse | consumer 已用完旧 tile 吗 | empty/full ownership phase |
-| CTA/cluster phase | required participants 到齐了吗 | block/cluster barrier |
-| output publication | global stores 对 downstream 可见吗 | kernel/event edge 或 scoped release/acquire |
-| remote delivery | collective/RMA data 到对端了吗 | NCCL completion 或 NVSHMEM quiet+signal/wait |
-| allocation reuse | 所有 local/remote consumers 都结束了吗 | event/stream DAG + allocator lifetime |
-
-没有一个 primitive 能替代整张表。所谓“同步优化”就是让每个 responsibility 只由最窄、最直接的一条 edge 承担。
-
-### 10.4 双缓冲时序
+### 10.3 时间重叠图
 
 ```text
-time →
+time ──────────────────────────────────────────────────────────────→
 
-TMA     fill S0 ───── done0     fill S1 ───── done1     fill S0(gen+1)
-Tensor                 use S0 ─────────       use S1 ─────────
-owner  E0→Filling→Full→Consuming→E0    E1→Filling→Full→Consuming→E1
+TMA      fill S0(k) ──────┐ fill S1(k+1) ────┐ fill S0(k+2) ────┐
+                           │                   │                   │
+mbar     phase0 complete ──┘ phase1 complete ─┘ phase2 complete ─┘
+
+Tensor                    use S0(k) ────────┐ use S1(k+1) ──────┐
+                                            │                    │
+owner    E0→Filling→Full→Consuming→Empty ───┘                    │
+         E1────────→Filling→Full→Consuming→Empty ────────────────┘
 ```
 
-若 compute 比 copy 慢，producer 会等 empty stage；若 copy 比 compute 慢，consumer 会等 full/completion；若两边都 ready 但 Tensor path saturated，则体现为 execution throughput/backpressure，而不是 barrier correctness 问题。
+这里至少有五种同时存在、但责任不同的 state：
+
+- stream/event task state；
+- CTA/warp residency 与 eligibility；
+- scoreboard instruction dependencies；
+- mbarrier/Tensor async completion；
+- stage ownership phase。
+
+### 10.4 Tile handoff ledger
+
+| Gate | Producer → consumer | Receipt | 等待时持有的资源 | 需要额外证明 |
+| --- | --- | --- | --- | --- |
+| input ready | stream A → K | event/edge | K 通常尚未 admission | allocation lifetime |
+| CTA placement | device scheduler → CTA | residency | registers/shared/CTA slot | producer progress |
+| global load ready | memory path → instruction | scoreboard | warp context | 无跨-thread publication |
+| TMA submission | producer warp → async proxy | issue + required proxy ordering | producer warp/descriptor | elected once、source visibility |
+| shared tile ready | TMA → consumers | mbarrier tx/phase | waiting consumer warps resident | correct bytes、phase、acquire |
+| Tensor result ready | Tensor path → consumer instruction | commit/wait/specialized completion | warpgroup context | input/output contract |
+| stage empty | consumer → producer | ownership release | stage shared memory | generation identity |
+| output ready | K → stream B | grid completion/event | downstream尚未运行 | output buffer lifetime |
+| remote ready | local → remote | API-specific completion + signal | communication resources | order、delivery、notification |
+
+这张 ledger 才是整篇的“统一模型”。任何新同步 primitive 都可以放进来审查，而不是记住一个孤立定义。
 
 ---
 
-## 11. 选择机制：先问责任，再问 API
+## 11. 用同一条交接链诊断 correctness 与 performance
 
-### 11.1 决策树
+### 11.1 先找到 tile 停在哪次交接
 
-```text
-只是同一 instruction stream 等 register result？
-  → hardware scoreboard
-
-只是 target execution path/queue 忙？
-  → hardware backpressure；调整 instruction mix、ILP/TLP、pipeline balance
-
-warp/subgroup 要 vote、shuffle、match、reduce？
-  → 先定义 participant mask/group；memory ordering 另行检查
-
-participants 必须在 phase boundary 到齐？
-  → warp / CTA / cluster / cooperative-grid barrier
-
-要 arrive 后继续，或把 async transaction 算入 phase？
-  → cuda::barrier / mbarrier / pipeline
-
-要等待 issuing context 的 async instruction batch？
-  → 该 instruction family 的 commit/wait/completion mechanism
-
-多个 threads 竞争 counter、queue state、lock 或 ownership word？
-  → scoped atomic；分别选择 atomicity、order、scope
-
-只需发布 payload 并通知 consumer？
-  → release/acquire atomic signal，或已有 memory contract 的 primitive
-
-依赖位于 kernels/copies/graph nodes？
-  → stream order / event / graph edge
-
-secondary 只有后半段依赖 primary？
-  → PDL launch trigger + downstream data-ready wait
-
-保护 allocation/object/storage reuse？
-  → explicit lifetime edge；stream-ordered allocator / phase ownership
-
-跨 API timeline/ownership？
-  → external semaphore + resource ownership protocol
-
-跨 GPU collective 或 one-sided communication？
-  → NCCL 或 NVSHMEM；确认 ordered/completed/visible/notified 的具体层次
+```mermaid
+flowchart TD
+    S["Tile did not progress"] --> A{"Task admitted?"}
+    A -->|"no"| SW["Inspect stream / event / graph / context queue"]
+    A -->|"yes"| R{"CTA resident?"}
+    R -->|"no"| OCC["Inspect resources, occupancy, cluster constraints"]
+    R -->|"yes"| E{"Warp eligible?"}
+    E -->|"no"| WHY{"What receipt is missing?"}
+    WHY --> SB["Scoreboard operand"]
+    WHY --> BAR["Barrier participants"]
+    WHY --> MB["mbarrier / async transaction"]
+    WHY --> MEM["membar / visibility"]
+    E -->|"yes"| P{"Selected and issued efficiently?"}
+    P -->|"no"| PIPE["Dispatch / execution-path pressure"]
+    P -->|"yes"| LIFE["Check downstream completion and ownership reuse"]
 ```
 
-### 11.2 最窄 scope、最小 participant、最晚必要 wait
+### 11.2 Correctness 症状
 
-三个常用优化原则：
-
-1. **最窄 scope**：warp/block 足够时不要上 device/system；
-2. **最小 participant**：只让真正共享 state 的 lanes/warps/blocks 参加；
-3. **最晚必要 wait**：先 issue async work，做 independent work，到首次消费前再 wait。
-
-同时不能为了性能把 correctness edge 删除。正确做法是缩小 edge，而不是假设 timing。
-
-### 11.3 Progress 与 visibility 分开证明
-
-每个 protocol 分别写两份 proof：
-
-```text
-progress proof:
-  所有 required producers/participants 最终都能被调度并到达 condition
-
-visibility proof:
-  consumer 通过匹配 order/scope/proxy 观察到了 producer payload
-```
-
-barrier deadlock 常是 progress proof 失败；plain flag/data race 常是 visibility proof 失败；buffer overwrite 常是 lifetime/ownership proof 失败。
-
----
-
-## 12. 诊断：同步 bug 与 pipeline stall 怎样对应
-
-### 12.1 Correctness 症状
-
-| 症状 | 优先怀疑 |
+| 症状 | 最可能失败的证明 |
 | --- | --- |
-| kernel 永久 hang | barrier participant mismatch、grid spin deadlock、collective rank mismatch |
-| 偶发旧数据 | 缺 release/acquire、scope 太窄、proxy handoff 缺失 |
-| 上一 tile 数据混进下一 tile | phase/parity/sequence ABA、stage ownership 缺失 |
-| 只有优化编译或新 GPU 出错 | data race、volatile 假同步、隐式 warp lockstep 假设 |
-| multi-stream 偶发 use-after-free | allocation/free lifetime edge 缺失 |
-| multi-GPU 远端偶发不可见 | 把 ordering 当 completion，或 completion 后没有 notification |
-| PDL secondary 读到未完成结果 | 把 launch trigger 当 data-ready |
+| kernel 永久 hang | participant/progress：barrier mismatch、residency deadlock、rank mismatch |
+| 偶发旧数据 | visibility：缺 release/acquire、scope 太窄、proxy handoff 缺失 |
+| 上一 tile 混入下一 tile | ownership/phase：ABA、parity/token、stage reuse 错误 |
+| 新 GPU 或优化编译才出错 | 隐式 lockstep、volatile 假同步、data race |
+| multi-stream use-after-free | ownership/lifetime DAG 缺失 |
+| PDL secondary 读到未完成结果 | 把 launch-ready 当 data-ready |
+| remote consumer 永久等 | completion/notification 或 communicator progress 失败 |
 
-### 12.2 Performance 症状
+### 11.3 Nsight / timeline 现象
 
-| Profiler / timeline 现象 | 解释方向 |
+| 现象 | Tile 大概率停在哪个 gate |
 | --- | --- |
-| active warps 高、eligible 低 | 大量 warps 同时卡在 dependency/barrier/resource gate |
-| long scoreboard 高 | L1TEX latency 暴露，检查 coalescing/cache/ILP/TLP |
-| short scoreboard 高 | shared/MIO dependency，检查 bank conflict 与 MIO traffic |
-| barrier stall 高 | phase imbalance、participant 到达 tail、过宽 rendezvous |
-| membar stall 高 | fence 等待 outstanding traffic，检查 scope/domain/多余 fence |
-| math pipe throttle | execution throughput 不够，不是多加 barrier |
-| not selected 高但 issue 满 | scheduler 有其他 eligible work，通常不是主要瓶颈 |
-| copy 与 compute 不重叠 | wait 太早、stage 太浅、resource conflict、async 未真正建立 |
-| timeline 出现全 device 空洞 | host/device sync 太宽、legacy stream coupling、hidden dependency |
-| NCCL 前后 streams 全部串行 | multi-stream group dependency 或 task DAG 过宽 |
+| active warps 高、eligible 低 | 多个 warps 同时缺 dependency/barrier/completion receipt |
+| long scoreboard 高 | global/local/texture result 未返回 |
+| short scoreboard 高 | shared/MIO dependency、bank conflict 等 |
+| barrier stall 高 | participant 到达不平衡或 scope 过宽 |
+| membar stall 高 | ordering要求的 outstanding traffic 未满足 |
+| math pipe throttle | Tensor/FP throughput，不是缺 barrier |
+| not selected 高但 issue slot 满 | scheduler 有其他 eligible work，通常不是首要问题 |
+| copy 与 compute 不重叠 | wait 太早、stage 太浅、resource conflict或 async protocol未建立 |
+| timeline 出现 device-wide 空洞 | host wait 太宽、legacy stream coupling、隐藏 dependency |
+| NCCL 周围多 streams 被串行 | group dependency 或 software DAG 过宽 |
 
-### 12.3 常见错误清单
+### 11.4 三个常见误诊
 
-1. 把 long scoreboard 当成缺少 `__syncthreads()`。
-2. 把 pipeline throttle 当成 dependency stall。
-3. 在 divergent path 中执行 full-warp/full-block barrier。
-4. `*_sync` mask 遗漏 participant，或把 warp collective 当 memory fence。
-5. 在 Volta+ 继续依赖隐式 warp lockstep。
-6. mbarrier arrival/tx-count 与实际 work 不匹配。
-7. 忘记 token/parity/generation，把旧 completion 当新 completion。
-8. 只有 full signal，没有 empty ownership handoff。
-9. 用 relaxed atomic/volatile flag 发布普通 payload。
-10. 用 fence 等 participant 到齐，或用 barrier 代替 async-group completion。
-11. 手写 TMA/WGMMA/tcgen 时忽略 proxy、group 与 target rule。
-12. ordinary grid 中 resident consumers 等 unscheduled producers。
-13. PDL trigger 后立即读取 primary result，不执行 data-ready wait。
-14. cross-stream 使用 `cudaMallocAsync` allocation，却没有 allocation/use/free edges。
-15. NCCL host call 返回后立即消费 output。
-16. 把 NVSHMEM fence 当 quiet，或 quiet 后省略 remote notification。
-17. 为等一个 event 使用 `cudaDeviceSynchronize()`，无谓扩大 wait。
-18. 以为 Unified Memory page migration 自动提供应用同步。
+1. **把 long scoreboard 当缺少 barrier**：scoreboard 已经在等待 producer result；插 barrier 只会增加 participant wait。
+2. **把 barrier 当 memory fence 的同义词**：barrier 同时涉及 participant phase；fence 没有到达计数或 signal。
+3. **看到 copy complete 就立即复用 stage**：completion 只完成 producer→consumer 方向，consumer→producer 的 empty ownership 尚未返回。
 
 ---
 
-## 13. 建议实验：沿流水逐层看见同步
+## 12. 建议实验：让每张 receipt 都能被观察
 
-### 实验 A：Active、eligible、issued 与 scoreboard
+### 实验 A：Scoreboard 与 latency hiding
 
-写三版 global load kernel：
+写三版 global-load kernel：
 
 1. load 后立即 use；
-2. load 与 use 之间插 independent arithmetic；
+2. load 与 use 之间加入 independent arithmetic；
 3. 增加 independent warps。
 
-比较 long scoreboard、eligible/active warps、issue efficiency、coalescing/cache、occupancy 与 kernel time。
+比较 long scoreboard、active/eligible warps、issue efficiency、occupancy 与 kernel time。目标是观察同一张 register receipt 如何被 ILP/TLP 隐藏。
 
-### 实验 B：Warp mask 与 collective
+### 实验 B：Shared tile handoff
 
-写一个 divergent warp reduction：先故意用 branch 内 `__activemask()` 猜 participant，再用预先定义的 mask/Cooperative Group 修正。用 Compute Sanitizer 与随机输入观察错误是否依赖 scheduling。
-
-### 实验 C：Barrier、atomic 与 publication
-
-实现 block producer-consumer 三版：
+实现三版 block producer-consumer：
 
 1. 错误 plain/volatile flag；
 2. full-block `__syncthreads()`；
-3. subset release/acquire atomic protocol。
+3. subset release/acquire atomic 或 named barrier。
 
-写清 participant、scope、progress 与 visibility proof，并比较不必要等待。
+分别写出 progress、completion、visibility、ownership proof，并比较 barrier tail。
 
-### 实验 D：Async copy 与 Tensor pipeline
+### 实验 C：从同步 copy 演进到 async pipeline
 
-从同步 global→shared copy 开始，逐步加入：
+按顺序实现：
 
-1. `cp.async` / `cuda::memcpy_async` group；
-2. two-stage `cuda::pipeline`；
-3. 支持硬件上的 TMA + mbarrier；
-4. 支持时观察 WGMMA/tcgen async completion。
+1. ordinary global→register→shared copy；
+2. `cp.async` / `cuda::memcpy_async` group；
+3. two-stage `cuda::pipeline`；
+4. 支持硬件上的 TMA + mbarrier；
+5. 支持时加入 WGMMA/tcgen completion。
 
-画出 stage state machine，测 copy/compute overlap、group depth、barrier stall 与 Tensor utilization。
+每一步都画 full/empty state，标注哪个 wait 被推迟，以及 producer/consumer 各自何时不 eligible。
 
-### 实验 E：Software DAG 与 lifetime
+### 实验 D：Software DAG 与 lifetime
 
-用三个 streams 构造：producer → consumer → `cudaFreeAsync`。逐个删除 event edge，观察 data race/use-after-free；再比较 event wait 与宽泛 device synchronization。
+用三条 streams 构造：
 
-### 实验 F：PDL 与 distributed completion
+```text
+malloc/producer → tile kernel → consumer → freeAsync
+```
 
-1. 比较普通 same-stream edge 与 PDL secondary preamble overlap；
-2. 若有多 GPU，比较 cross-device event、NCCL collective completion；
-3. 若有 NVSHMEM，分别观测 fence、quiet、signal/wait 的时间点。
+逐个删除 event edge，观察 data race/use-after-free；再比较 event wait 与 `cudaDeviceSynchronize()` 对 timeline overlap 的影响。
 
-为每个 observable event 标注：submitted、admitted、issued、local-complete、destination-visible、notified、lifetime-ended。
+### 实验 E：Distributed completion
 
----
+如果有多 GPU：
 
-## 14. 代际边界：不要把一代 GPU 的同步路径推广到全部 NVIDIA GPU
-
-| 代际主线 | 与本章相关的公开变化 | 阅读提醒 |
-| --- | --- | --- |
-| Pascal 及更早 | 传统 warp lockstep 心智模型影响旧代码 | 新代码仍应使用显式 `*_sync` / barrier，不依赖旧隐式行为 |
-| Volta/Turing | Independent Thread Scheduling、现代 scoped memory model/fence 基础 | warp-synchronous legacy code 必须复查 participant 与 ordering |
-| Ampere | hardware-accelerated async copy、mbarrier/pipeline 能力扩展 | `cp.async` group 与 CTA rendezvous 不是同一个 state |
-| Hopper | thread-block cluster、DSM、TMA、mbarrier tx-count、WGMMA、memory sync domain、PDL | cluster scope、async proxy、warpgroup completion 都是新责任 |
-| Blackwell-generation | Tensor Memory、`tcgen05`、更多 specialized/fabric completion 与 proxy rule | 按当前 PTX target 与 library abstraction 阅读，不照搬 Hopper WGMMA protocol |
-
-即便同代不同 SKU、MIG configuration 或 compiler/library 版本，cluster size、resident resources、hardware acceleration 与 supported primitive 也可能不同。使用 device query、compile target 与官方 feature requirement，而不是只看 marketing generation。
+1. 用 cross-device event 表达 task handoff；
+2. 观察 NCCL call return 与 CUDA stream completion 的差异；
+3. 使用 NVSHMEM 时分别标记 fence、quiet、signal/wait；
+4. 对每一步标注 ordered、source-complete、destination-visible、notified、reusable。
 
 ---
 
-## 15. 官方资料与阅读顺序
+## 13. 支线机制放回它们所属的交接点
 
-### 15.1 先建立 work/warp/pipeline 模型
+这些机制重要，但不应打断 tile 主线。
 
-1. CUDA Programming Model：grid、block、cluster、SM 与 memory hierarchy
-   - <https://docs.nvidia.com/cuda/cuda-programming-guide/01-introduction/programming-model.html>
+### 13.1 Green / Execution Context：改变 progress resource，不创建 data edge
+
+Green Context 可以 provision SM/work-queue resources，减轻不同 workloads 的资源干扰。它改变的是 grid admission、placement 与 progress premise；不会自动在两个 contexts 的 payload 间建立 happens-before。
+
+Context-level event/synchronization 可捕获更宽的 work 范围。根据需要选择 event、stream、context 或 device wait，不要把 isolation 当 completion。
+
+### 13.2 Dynamic Parallelism：device-created software DAG
+
+Device thread launch child grid 后，parent/child 仍构成 work DAG。Proper nesting 不表示 child 必然与 parent 并发，也不允许随意把 parent shared/local memory 交给 child。
+
+现代 CDP2/tail launch 应按当前 execution model 组织 child result 的下游消费，而不是套用旧 device-side `cudaDeviceSynchronize()` 心智模型。
+
+### 13.3 Cluster Launch Control：scheduler state 也可以异步交接
+
+Blackwell CLC 让执行中的 block/cluster 尝试取消尚未开始的 work，并取得被取消 index 来 work-steal：
+
+```text
+leader issues cancellation request
+  → scheduler tries to cancel pending work
+  → result written asynchronously
+  → mbarrier transaction completes
+  → requester waits phase and performs required proxy handoff
+  → success: execute stolen index; failure: follow retry/observation rules
+```
+
+它同时涉及 leader election、scheduler state、mbarrier transaction、shared result lifetime 与 proxy ordering。CLC 是 scheduling primitive，不是 memory fence，也不保证每次 steal 成功。
+
+### 13.4 Memory synchronization domains：减少 fence interference
+
+Hopper memory synchronization domains 可以隔离无关 traffic，减少宽 scope fence 被其他 transactions 拖累。它优化的是 fence interference，不创建新的 rendezvous，也不免费提供跨-domain ordering。
+
+---
+
+## 14. 代际边界：主线稳定，凭证实现会变化
+
+| 代际主线 | 与 tile 交接相关的变化 |
+| --- | --- |
+| Pascal 及更早 | 旧代码常依赖隐式 warp lockstep；新代码不应延续该假设 |
+| Volta/Turing | Independent Thread Scheduling、现代 scoped memory model 基础 |
+| Ampere | hardware-accelerated async copy、mbarrier/pipeline 能力扩展 |
+| Hopper | cluster、DSM、TMA、mbarrier tx-count、WGMMA、memory sync domains、PDL |
+| Blackwell-generation | Tensor Memory、tcgen05、CLC、更多 specialized/proxy completion rules |
+
+稳定不变的是四份证明；变化的是：谁执行异步工作、completion 写进什么 object、哪些 proxy/scope 有效、object lifetime 如何管理。
+
+PTX 是 virtual ISA，SASS 才是 target-specific machine instruction。Scheduler 数量、dispatch width、scoreboard encoding、cache/coherence implementation 与 firmware policy 没有全部公开，因此本文采用公开 programming/PTX/profiler model，不把它误写成完整 RTL。
+
+---
+
+## 15. 机制索引：它们各自签发什么 receipt
+
+这一节用于查阅，不是阅读主线。
+
+| 机制 | 主要状态/receipt | 直接 observer | 不自动保证 |
+| --- | --- | --- | --- |
+| scoreboard | operand/result ready | warp scheduler、dependent instruction | 跨 thread visibility |
+| hardware backpressure | target path capacity | scheduler/dispatcher | producer completion |
+| warp/CTA/cluster barrier | participant phase complete | group participants | arbitrary async work完成 |
+| mbarrier | phase + arrivals + transactions | participants、async engine | storage 已可下一代复用 |
+| async group | issuing context 的 operation batch | issuing thread/warp/warpgroup | CTA rendezvous |
+| fence | memory effects ordering | memory model participants | signal、arrival、completion |
+| release/acquire atomic | state transition + publication edge | scope覆盖的 threads | producer forward progress |
+| semaphore | permit/ownership/progress count | acquire waiter | 任意 payload 的隐式 ordering |
+| CUDA event | stream record 点前 task completion | wait stream、host | kernel 内 thread phase |
+| external timeline | cross-API monotonic progress | imported API/device/process | resource layout/ownership细节 |
+| NCCL completion | communicator collective work | participating ranks/streams | one-sided general memory fence |
+| NVSHMEM quiet/signal | delivery completion / notification | PE/team | 彼此未声明的保证 |
+
+选择原则不是“最强 primitive”，而是：
+
+1. 最窄 scope；
+2. 最小 participant set；
+3. 最精确 completion condition；
+4. 最晚必要 wait；
+5. 明确的 generation 与 ownership return；
+6. scheduler 可满足的 forward-progress premise。
+
+---
+
+## 16. 官方资料与阅读顺序
+
+### 16.1 先看 work、placement 与 warp issue
+
+1. CUDA Programming Model
+   <https://docs.nvidia.com/cuda/cuda-programming-guide/01-introduction/programming-model.html>
 2. Advanced Kernel Programming：SIMT、Independent Thread Scheduling、occupancy
-   - <https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/advanced-kernel-programming.html>
+   <https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/advanced-kernel-programming.html>
 3. Nsight Compute Profiling Guide：active/eligible/issued warp 与 stall reason
-   - <https://docs.nvidia.com/nsight-compute/ProfilingGuide/>
-4. CUDA C++ Best Practices Guide：latency hiding、memory、instruction optimization
-   - <https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/>
-5. Green / Execution Contexts：SM/WQ partition 与 context-level event/sync
-   - <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/green-contexts.html>
+   <https://docs.nvidia.com/nsight-compute/ProfilingGuide/>
+4. CUDA C++ Best Practices Guide
+   <https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/>
+5. Green / Execution Contexts
+   <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/green-contexts.html>
 
-### 15.2 再学习 kernel 内 synchronization 与 memory model
+### 16.2 再看 participant、memory 与 completion
 
-6. CUDA C/C++ Language Extensions：warp function、barrier、atomic、fence
-   - <https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html>
-7. CUDA C++ Memory Model：atomicity、data race、thread scope、release/acquire
-   - <https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cuda-cpp-memory-model.html>
-8. Cooperative Groups：subgroup、cluster、grid 与 collective/barrier
-   - <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/cooperative-groups.html>
-9. libcu++ synchronization primitives：atomic、barrier、latch、semaphore、pipeline
-   - <https://nvidia.github.io/cccl/libcudacxx/extended_api/synchronization_primitives.html>
-10. PTX ISA：memory consistency、barrier、mbarrier、fence、async group、WGMMA、tcgen05
-   - <https://docs.nvidia.com/cuda/parallel-thread-execution/>
+6. CUDA C/C++ Language Extensions：warp、barrier、atomic、fence
+   <https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html>
+7. CUDA C++ Memory Model
+   <https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cuda-cpp-memory-model.html>
+8. Cooperative Groups
+   <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/cooperative-groups.html>
+9. libcu++ synchronization primitives
+   <https://nvidia.github.io/cccl/libcudacxx/extended_api/synchronization_primitives.html>
+10. PTX ISA：memory consistency、barrier、mbarrier、fence、WGMMA、tcgen05
+    <https://docs.nvidia.com/cuda/parallel-thread-execution/>
 
-### 15.3 然后学习 async engine 与 software DAG
+### 16.3 然后看 async tile pipeline
 
 11. CUDA asynchronous barriers
-    - <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/async-barriers.html>
+    <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/async-barriers.html>
 12. CUDA pipelines
-    - <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/pipelines.html>
+    <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/pipelines.html>
 13. CUDA asynchronous data copies
-    - <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/async-copies.html>
-14. Cluster Launch Control：Blackwell block/cluster cancellation 与 work stealing
-    - <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/cluster-launch-control.html>
-15. Hopper Tuning Guide：TMA、cluster 与 Hopper execution feature
-    - <https://docs.nvidia.com/cuda/archive/13.0.0/hopper-tuning-guide/index.html>
-16. CUDA streams/events 与 asynchronous execution
-    - <https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/asynchronous-execution.html>
-17. Programmatic Dependent Launch
-    - <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/programmatic-dependent-launch.html>
-18. CUDA Dynamic Parallelism
-    - <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/dynamic-parallelism.html>
-19. Stream-Ordered Memory Allocator
-    - <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/stream-ordered-memory-allocation.html>
+    <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/async-copies.html>
+14. Hopper Tuning Guide
+    <https://docs.nvidia.com/cuda/archive/13.0.0/hopper-tuning-guide/index.html>
+15. Cluster Launch Control
+    <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/cluster-launch-control.html>
+16. Programmatic Dependent Launch
+    <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/programmatic-dependent-launch.html>
+
+### 16.4 最后扩展到 task lifetime 与 remote handoff
+
+17. CUDA asynchronous execution：streams/events
+    <https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/asynchronous-execution.html>
+18. Stream-Ordered Memory Allocator
+    <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/stream-ordered-memory-allocation.html>
+19. Dynamic Parallelism
+    <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/dynamic-parallelism.html>
 20. Memory Synchronization Domains
-    - <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/memory-sync-domains.html>
-
-### 15.4 最后进入 host、interop 与 multi-GPU
-
+    <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/memory-sync-domains.html>
 21. Unified Memory
-    - <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/unified-memory.html>
+    <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/unified-memory.html>
 22. Multi-GPU Systems
-    - <https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/multi-gpu-systems.html>
-23. External Semaphore / Graphics Interop
-    - <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/graphics-interop.html>
+    <https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/multi-gpu-systems.html>
+23. Graphics Interop / External Semaphore
+    <https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/graphics-interop.html>
 24. NCCL CUDA Stream Semantics
-    - <https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/streams.html>
+    <https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/streams.html>
 25. NVSHMEM Memory Ordering
-    - <https://docs.nvidia.com/nvshmem/api/gen/api/ordering.html>
+    <https://docs.nvidia.com/nvshmem/api/gen/api/ordering.html>
 
 ---
 
-## 16. 总复习：每一层究竟由谁放行
+## 17. 最后的统一心智模型
 
-| 层级 | 放行条件 | 主要机制 |
-| --- | --- | --- |
-| CPU→CUDA | command 已提交/完成 | async API、event/stream/device wait |
-| stream/graph | predecessor task 已满足 edge | stream order、event、graph dependency、PDL |
-| execution-context scheduling | context resource 与 context-wide dependency 满足 | Green Context SM/WQ partition、context event/sync |
-| grid admission | runtime/device scheduler 允许 work 进入 | queue/context scheduling；非 kernel barrier |
-| block/cluster residency | register/shared/barrier/cluster resource 可用 | placement/occupancy/cooperative launch |
-| dynamic block work stealing | cancellation response completed，stolen index valid | CLC request + mbarrier + proxy handoff |
-| SIMT participation | 正确 lanes 执行匹配 collective | mask、Cooperative Group、`*_sync` |
-| warp issue | operand 与 target path ready | scoreboard、scheduler、hardware backpressure |
-| register result | producer instruction 完成 | scoreboard/writeback dependency |
-| participant phase | required arrivals 到齐 | warp/CTA/cluster/grid barrier |
-| async copy/math | group/transaction completion | commit/wait group、mbarrier、specialized wait |
-| shared stage | full/empty ownership 与 phase 正确 | barrier/mbarrier/pipeline/semaphore-like state |
-| memory publication | order、scope、proxy 匹配 | atomic release/acquire、fence、proxy fence |
-| kernel retirement | outstanding work 排空 | hardware completion/drain |
-| downstream task | kernel/copy/event completion | stream/event/graph edge |
-| host access | GPU work completed or heterogeneous protocol satisfied | stream/event/device sync、system atomic |
-| allocation reuse | 所有 users 已结束 | stream-ordered lifetime DAG |
-| external API | timeline 与 ownership transferred | external semaphore |
-| remote GPU/PE | ordered、delivered、visible、notified/collective complete | cross-device event、NCCL、NVSHMEM |
+遇到任何 GPU synchronization primitive，先不要问“它和 barrier 有什么区别”，而要把 tile 放回交接链，逐项问：
 
-> **GPU 同步的统一模型是：软件 DAG 决定 work 能否进入，placement 决定谁能同时在场，warp scheduler 依据 scoreboard 与 resource state 决定 instruction 能否发射，barrier/collective 决定 participants 能否越过 phase，async completion object 决定 copy/Tensor work 能否消费，atomic/fence/proxy rule 决定 memory effects 如何被观察，ownership/lifetime edge 决定 storage 能否复用，system communication 再决定 remote delivery 与 notification。**
+```text
+谁在生产？谁在消费？
+producer 一定能被调度吗？
+consumer 等到的 completion 精确对应什么工作？
+这张 receipt 是否带 payload visibility，scope/proxy 是否匹配？
+等待时 warp/CTA/task 还占着什么资源？
+consumer 用完后，怎样把 ownership 交回下一 generation？
+```
+
+> **Software DAG 决定 work 何时允许进入；placement 决定谁能同时在场；warp scheduler 根据 scoreboard、barrier 与 resource state 决定 instruction 能否发射；async completion object 把 copy/Tensor work 交给 consumer；memory order 与 proxy rule 使 payload 可见；phase、semaphore 与 lifetime edge 最终把 storage 交回下一块 tile。**
+
+这就是从 CPU submission 到 remote completion 的同一条同步主线。

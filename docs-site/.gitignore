@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.vitepress/cache/
+.vitepress/.temp/
+implementation-*.png
+design-comparison*.png
+reference-*-normalized.png
+source-focus.png
+design-qa.md

@@ -1,6 +1,6 @@
-# AI Accelerator Architecture Learning Lab
+# archNotes
 
-这是一个研究不同 **AI accelerator architecture** 的学习项目。当前包含四条主线：
+一套研究不同 **AI accelerator architecture** 的学习笔记与可执行实验。项目不再以单一 LPU/Groq 为中心，而是使用统一坐标系比较四条主线：
 
 - NVIDIA GPU：SM、SIMT/warp、Tensor Core、HBM/cache 与 CUDA ecosystem；
 - Groq LPU/TSP：functional slicing、stream 与 compiler time-space scheduling；

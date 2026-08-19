@@ -1,4 +1,15 @@
+---
+title: "NVIDIA GPU 软硬件流水与同步：一块 Tile 的端到端交接"
+description: "副标题：从 CPU submission、grid admission 和 warp issue，到 TMA、mbarrier、Tensor pipeline、下游任务与 buffer reuse。"
+outline: deep
+products: ["NVIDIA GPU"]
+documentType: "架构专论"
+topics: ["Tile 流水","同步","数据移动"]
+---
+
 # NVIDIA GPU 软硬件流水与同步：一块 Tile 的端到端交接
+
+<Badge type="tip" text="NVIDIA GPU" /> <Badge type="info" text="架构专论" />
 
 副标题：从 CPU submission、grid admission 和 warp issue，到 TMA、mbarrier、Tensor pipeline、下游任务与 buffer reuse。
 

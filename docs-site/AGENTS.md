@@ -23,3 +23,8 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Do not create a second content tree under `docs-site/`. Edit only the canonical Markdown and assets under `../docs/`.
 - Debugging and review use local VitePress dev/preview only. Pushing a feature branch never authorizes a production deployment.
 - Production deployment is allowed only after the change has been merged to `main`. Before deploying, fetch `origin/main`, verify the deployed revision is exactly the merged `origin/main` revision, then build and deploy that revision.
+- `README.md` is English-only. Do not add an inline Chinese translation or create `README.zh-CN.md` unless the user explicitly changes this rule.
+- The documentation uses Chinese as the root locale and English under `/en/`. Paired pages keep the same relative path below the locale root so the built-in language switch can map them predictably.
+- Technical terminology stays in canonical English in both locales. Chinese prose explains an English term but must not replace it with a translated technical label. Preserve official capitalization, acronyms, API names, ISA names, metrics, and vendor terminology.
+- `docs/glossary.md` and `docs/en/glossary.md` are the terminology contract. They use the same English term inventory and category structure; only the explanations differ by locale.
+- All locale content must be committed Markdown under `docs/`. The Markdown-to-HTML build may render locale files but must never translate, generate, rewrite, or backfill them.

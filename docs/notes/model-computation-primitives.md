@@ -1,13 +1,13 @@
 ---
-title: 模型计算原语与 Workload 描述
-description: 在讨论 compiler 和硬件之前，用统一账本描述模型产生的计算、数据、状态、并行性和通信需求。
+title: Model Computation Primitives and Workload Description
+description: 在讨论 Compiler 和 Hardware 之前，用统一 ledger 描述 model 产生的 compute、data、state、parallelism 和 Communication requirement。
 outline: deep
 products: ["跨架构"]
 documentType: "全栈主干"
 topics: ["模型计算", "Workload", "Tensor shape", "数据复用"]
 ---
 
-# 模型计算原语与 Workload 描述
+# Model Computation Primitives and Workload Description
 
 ## 核心问题
 

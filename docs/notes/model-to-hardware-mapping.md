@@ -1,6 +1,6 @@
 ---
-title: 模型到硬件的完整映射
-description: 从模型图、编译中间表示和运行时任务，一直追踪到指令流、数据搬运与硬件执行单元。
+title: Model-to-Hardware Mapping
+description: 从 model graph、Intermediate Representation 和 Runtime task，一直追踪到 instruction stream、Data Movement 与 Hardware Execution Unit。
 documentType: 全栈主干
 topics:
   - mapping
@@ -9,7 +9,7 @@ topics:
   - execution
 ---
 
-# 模型到硬件的完整映射
+# Model-to-Hardware Mapping
 
 ## 核心问题
 

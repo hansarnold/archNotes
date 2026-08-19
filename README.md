@@ -1,23 +1,31 @@
 # archNotes
 
-一套研究 NVIDIA GPU、Groq LPU/TSP、Tenstorrent Tensix 与 Google TPU 的架构笔记和可执行教学实验。
+archNotes is a learning repository for AI compute full-stack co-design. It connects model workloads, compiler and runtime mapping, accelerator architecture, software optimization, model–hardware co-design, and performance validation.
 
-内容入口：
+The architecture case studies cover NVIDIA GPU, Groq LPU/TSP, Tenstorrent Tensix, and Google TPU. They are used to compare execution models and software contracts rather than to rank peak specifications.
 
-- [文档首页](docs/index.md)
-- [主题矩阵](docs/topics.md)
-- [多架构学习路线](docs/notes/learning-roadmap.md)
-- [四类加速器统一对照](docs/notes/ai-accelerator-architecture-comparison.md)
-- [资料目录](docs/sources/catalog.md)
-- [术语表](docs/glossary.md)
+## Documentation
 
-## 内容与发布边界
+- [Chinese documentation](docs/index.md)
+- [English documentation](docs/en/index.md)
+- [Curriculum blueprint](docs/en/curriculum.md)
+- [Topic matrix](docs/topics.md)
+- [Learning roadmap](docs/notes/learning-roadmap.md)
+- [Architecture comparison](docs/notes/ai-accelerator-architecture-comparison.md)
+- [Glossary](docs/en/glossary.md)
+- [Source catalog](docs/sources/catalog.md)
 
-`docs/` 是唯一内容源。标题、描述、链接、正文图片和图表都必须在 Markdown 中完成；`docs-site/` 只负责确定性地把这些文件渲染为网站，不生成或回写内容。
+## Content and Publishing Contract
 
-正文图表使用 `docs/assets/diagrams/*.svg`，可编辑源文件使用同名 `.mmd`。修改 `.mmd` 后运行图表导出命令，再提交 Markdown、`.mmd` 和 `.svg`。
+`docs/` is the only canonical content tree. Titles, descriptions, links, body images, and diagrams must be complete in Markdown before the site build starts. `docs-site/` deterministically renders those files and must not generate, translate, rewrite, or backfill content.
 
-## 教学实验
+Chinese is the root documentation locale and English lives under `docs/en/`. Paired pages use the same relative path below their locale root.
+
+Technical terminology remains in canonical English in both locales. Chinese prose may explain a term, but it does not replace the term with a translated technical label. The two Glossary pages define the shared term inventory.
+
+Diagrams referenced by documentation live under `docs/assets/diagrams/` as committed SVG files. Their editable Mermaid sources use the same file name with the `.mmd` extension. After changing a Mermaid source, export the diagram and commit the Markdown, `.mmd`, and `.svg` together.
+
+## Teaching Labs
 
 ```bash
 python3 labs/static_scheduler/scheduler.py \
@@ -32,19 +40,21 @@ python3 labs/systolic_array/simulator.py \
 python3 -m unittest discover -s tests -v
 ```
 
-这些实验基于公开机制建立简化模型，不是厂商 simulator，也不能预测真实芯片的 wall-clock performance。
+The labs are simplified models of publicly documented mechanisms. They are not vendor simulators and do not predict wall-clock performance for real hardware.
 
-## 站点检查
+## Documentation Checks
 
-在 `docs-site/` 中执行：
+Run the following commands from `docs-site/`:
 
 ```bash
 npm run check
 npm run build
 ```
 
-需要修改图表时执行：
+To regenerate committed diagrams after editing Mermaid sources:
 
 ```bash
 npm run diagrams
 ```
+
+Production publishing is allowed only after a reviewed change has been merged into `main` and the exact `origin/main` revision has passed the full site build.

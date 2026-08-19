@@ -1,13 +1,13 @@
 ---
-title: "AI Accelerator 架构总览：GPU、Groq、Tenstorrent 与 Google TPU"
-description: "本文是项目的统一坐标系。它不做脱离 model、dtype、batch、software 和 system boundary 的“谁最快”排名，而是比较四种 architecture 怎样分配计算、存储、调度和通信责任。"
+title: "AI Accelerator Architecture Comparison"
+description: "本文是项目的统一 coordinate system。它不做脱离 model、Data Type、batch、software 和 system boundary 的 peak ranking，而是比较四种 Architecture 怎样分配 compute、memory、Scheduling 和 Communication responsibility。"
 outline: deep
 products: ["NVIDIA GPU","Groq LPU/TSP","Tenstorrent Tensix","Google TPU"]
 documentType: "比较研究"
 topics: ["计算组织","调度","数据移动","软件栈"]
 ---
 
-# AI Accelerator 架构总览：GPU、Groq、Tenstorrent 与 Google TPU
+# AI Accelerator Architecture Comparison
 
 最后核对日期：2026-08-10。
 

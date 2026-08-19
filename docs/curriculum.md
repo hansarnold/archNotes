@@ -1,13 +1,13 @@
 ---
-title: AI 计算全栈协同设计课程蓝图
-description: 以六条主线组织模型计算、软件映射、硬件架构、软件优化、软硬件协同设计和性能验证。
+title: AI Compute Full-Stack Co-design Curriculum
+description: 以六条主线组织 Model Computation、Software Mapping、Hardware Architecture、Software Optimization、Model–Hardware Co-design 和 Performance Validation。
 outline: deep
 products: ["跨架构"]
 documentType: "课程蓝图"
 topics: ["模型计算", "全栈映射", "硬件架构", "软件优化", "协同设计", "性能验证"]
 ---
 
-# AI 计算全栈协同设计课程蓝图
+# AI Compute Full-Stack Co-design Curriculum
 
 archNotes 的目标不是收集厂商资料，而是建立一套可以双向使用的分析方法：从模型计算出发，经过 compiler、runtime 和 kernel 推导硬件需求；也从硬件资源和约束出发，判断软件与模型应怎样优化。
 

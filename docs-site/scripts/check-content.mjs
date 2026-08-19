@@ -27,6 +27,35 @@ const markdownFiles = files.filter((file) => file.endsWith(".md"));
 const diagramSources = files.filter((file) => file.endsWith(".mmd"));
 const diagramAssets = files.filter((file) => file.endsWith(".svg"));
 const duplicateParagraphs = new Map();
+const pairedLocalePaths = [
+  "index.md",
+  "curriculum.md",
+  "glossary.md",
+  "notes/model-computation-primitives.md",
+  "notes/model-to-hardware-mapping.md",
+  "notes/ai-accelerator-architecture-comparison.md",
+  "notes/software-optimization-methodology.md",
+  "notes/model-hardware-codesign.md",
+  "notes/performance-modeling.md",
+];
+
+for (const relativePath of pairedLocalePaths) {
+  const chinesePath = path.join(docsRoot, relativePath);
+  const englishPath = path.join(docsRoot, "en", relativePath);
+  if (!existsSync(chinesePath)) errors.push(`Missing Chinese locale page: docs/${relativePath}`);
+  if (!existsSync(englishPath)) errors.push(`Missing English locale page: docs/en/${relativePath}`);
+  if (existsSync(chinesePath) && existsSync(englishPath)) {
+    const chineseTitle = readFileSync(chinesePath, "utf8").match(/^title:\s*["']?(.+?)["']?\s*$/m)?.[1];
+    const englishTitle = readFileSync(englishPath, "utf8").match(/^title:\s*["']?(.+?)["']?\s*$/m)?.[1];
+    if (chineseTitle !== englishTitle) {
+      errors.push(`Locale pair must share one canonical English title: docs/${relativePath}`);
+    }
+  }
+}
+
+const cjkPattern = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
+const readmeSource = readFileSync(path.join(repositoryRoot, "README.md"), "utf8");
+if (cjkPattern.test(readmeSource)) errors.push("README.md must remain English-only");
 
 const normalizeTarget = (target) => decodeURIComponent(target.split("#", 1)[0].split("?", 1)[0]);
 const isExternal = (target) => /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(target);
@@ -34,6 +63,10 @@ const isExternal = (target) => /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(target);
 for (const markdownPath of markdownFiles) {
   const relativePath = path.relative(repositoryRoot, markdownPath);
   const source = readFileSync(markdownPath, "utf8");
+
+  if (markdownPath.startsWith(path.join(docsRoot, "en") + path.sep) && cjkPattern.test(source)) {
+    errors.push(`${relativePath}: English locale page contains CJK text`);
+  }
 
   if (!source.startsWith("---\n") || !/^title:/m.test(source) || !/^description:/m.test(source)) {
     errors.push(`${relativePath}: missing committed title/description frontmatter`);
@@ -67,6 +100,18 @@ for (const markdownPath of markdownFiles) {
     owners.add(relativePath);
     duplicateParagraphs.set(normalized, owners);
   }
+}
+
+const glossaryTerms = (glossaryPath) => new Set(
+  [...readFileSync(glossaryPath, "utf8").matchAll(/^\| \*\*(.+?)\*\* \|/gm)].map((match) => match[1]),
+);
+const chineseGlossaryTerms = glossaryTerms(path.join(docsRoot, "glossary.md"));
+const englishGlossaryTerms = glossaryTerms(path.join(docsRoot, "en", "glossary.md"));
+for (const term of chineseGlossaryTerms) {
+  if (!englishGlossaryTerms.has(term)) errors.push(`English Glossary is missing canonical term: ${term}`);
+}
+for (const term of englishGlossaryTerms) {
+  if (!chineseGlossaryTerms.has(term)) errors.push(`Chinese Glossary is missing canonical term: ${term}`);
 }
 
 for (const owners of duplicateParagraphs.values()) {

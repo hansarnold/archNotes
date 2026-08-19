@@ -1,72 +1,126 @@
 ---
-title: 术语表
-description: AI 加速器架构笔记中反复使用的共享术语与层级边界。
+title: Glossary
+description: archNotes 使用的 canonical English technical terminology，以及对应的 Chinese explanations。
 outline: deep
-products: ["跨架构"]
-documentType: "共享参考"
-topics: ["术语", "层级边界", "执行模型"]
+products: ["Cross-architecture"]
+documentType: "Shared reference"
+topics: ["Terminology", "Layer boundaries", "Execution model"]
 ---
 
-# 术语表
+# Glossary
 
-本页只定义跨文章反复出现的术语。厂商专有机制仍在对应架构专论中解释。
+本页是全站的 terminology contract。term、acronym、capitalization、API name、ISA name 和 metric name 始终保留 canonical English；Chinese 只解释概念，不提供一套替代性的中文技术名词。
 
-## 计算与工作单位
+English explanations are available in the [English Glossary](./en/glossary.md).
 
-| 术语 | 本项目中的含义 |
+## Model and Workload
+
+| Canonical term | Chinese explanation |
 | --- | --- |
-| **Tile** | 被分块处理的一组数据或工作；它在 GPU、Groq、Tensix 和 TPU 中不是同一硬件层级。 |
-| **Tensor Core / MXU** | 面向矩阵或张量运算的计算单元。NVIDIA Tensor Core 与 TPU MXU 不能只凭名称视为等价结构。 |
-| **SM** | NVIDIA GPU 中容纳 warp、寄存器、shared memory、调度器及执行流水的多处理器。 |
-| **Functional slice** | Groq TSP 中按功能纵向划分、由静态指令流协调的数据通路。 |
-| **Tensix core** | Tenstorrent mesh 中带本地 SRAM、data-movement RISC-V 与 tensor/vector compute 的可编程 core。 |
-| **Systolic array** | 数据按规则在 PE 阵列中传播并累加的结构，常用于解释 TPU MXU 的矩阵乘 wavefront。 |
+| **Workload** | 一次分析中固定的 model、Operation、Tensor Shape、batch、sequence length、Data Type、execution phase 和 system boundary。 |
+| **Operation** | model graph 或 Intermediate Representation 中具有明确 input、output 和 semantics 的 compute 或 Data Movement unit。 |
+| **Tensor Shape** | tensor 各 dimension 的 size 及其 semantics；它直接影响 parallel granularity、Working Set 和 Tile boundary。 |
+| **Data Type (dtype)** | data 的 numeric representation，包括 storage format、compute precision 与 accumulation precision。 |
+| **Dependency** | 一个 Operation、task 或 data item 开始前必须满足的 prerequisite。 |
+| **Persistent State** | 跨 Operation 或 request 持续存在的 state，例如 weight、KV Cache 和 optimizer state。 |
+| **Prefill** | autoregressive inference 中处理已有 input token 并建立 KV Cache 的 phase。 |
+| **Decode** | autoregressive inference 中逐步生成新 token、读取并扩展 KV Cache 的 phase。 |
+| **Mixture of Experts (MoE)** | 通过 Routing 为 token 选择部分 expert 的 model structure，会引入 dynamic Workload、Load Imbalance 和 Communication。 |
 
-## 调度与执行
+## Compute and Units of Work
 
-| 术语 | 本项目中的含义 |
+| Canonical term | Chinese explanation |
 | --- | --- |
-| **SIMT / Warp** | 多线程共享指令、按 warp 发射的 GPU 执行模型；warp 也是动态延迟隐藏的重要单位。 |
-| **Static schedule** | 编译期确定操作时间、位置或资源占用的计划，不表示系统没有 runtime。 |
-| **Dynamic scheduling** | 运行时由硬件或软件依据 readiness、资源与优先级选择下一项工作。 |
-| **Latency hiding** | 用其他可执行工作、流水重叠或数据波前覆盖等待时间，而不是消除 latency。 |
-| **Occupancy** | GPU 上 resident work 与资源约束的关系；它是延迟隐藏条件之一，不等同于利用率。 |
-| **Backpressure** | 下游缓冲区或执行阶段无法继续接收数据时，对上游产生的阻塞。 |
-| **Wavefront** | 依赖满足的计算沿阵列或执行空间逐步推进形成的波面。 |
+| **Tile** | 被分块处理的一组 data 或 work；它在 GPU、Groq、Tensix 和 TPU 中不代表同一 hardware level。 |
+| **Tensor Core / Matrix Multiply Unit (MXU)** | 面向 matrix 或 tensor Operation 的 Compute Unit；不同 product 中的 implementation 和 surrounding pipeline 不能仅凭名称视为等价。 |
+| **Streaming Multiprocessor (SM)** | NVIDIA GPU 中容纳 Warp、register、Shared Memory、scheduler 与 Execution Pipeline 的 multiprocessor。 |
+| **Functional Slice** | Groq TSP 中按 function 划分、由 Static Instruction Stream 协调的 datapath partition。 |
+| **Tensix Core** | Tenstorrent mesh 中带 Local SRAM、Data Movement RISC-V 与 tensor/vector compute 的 programmable core。 |
+| **Systolic Array** | data 在 Processing Element (PE) array 中按规则传播并 accumulate 的 structure。 |
+| **Reduction** | 将多个 element 沿一个或多个 dimension 组合成较少 result 的 Operation，例如 sum、max 和 normalization statistics。 |
+| **Arithmetic Intensity** | Operation count 与指定 memory level 实际 Data Movement bytes 的 ratio。 |
 
-## 存储与数据移动
+## Scheduling and Execution
 
-| 术语 | 本项目中的含义 |
+| Canonical term | Chinese explanation |
 | --- | --- |
-| **Scratchpad / Local SRAM** | 由软件显式管理的片上存储，不应与透明 cache 混用。 |
-| **Shared memory** | NVIDIA GPU 中 CTA 可见、由程序显式管理的片上存储。 |
-| **Circular buffer (CB)** | Tensix kernel 之间交换 tile、表达容量和所有权的有界缓冲协议。 |
-| **HBM** | 高带宽片外内存；不同芯片、代际和系统边界下的带宽不能直接相除比较。 |
-| **VMEM** | TPU TensorCore 内供向量和矩阵计算使用的软件管理存储层。 |
-| **NoC** | 芯片内连接 core、SRAM 或功能模块的网络。 |
-| **Collective** | 多设备共同参与的通信操作，如 all-reduce；完成语义取决于具体 runtime 和 API。 |
+| **Single Instruction, Multiple Threads (SIMT)** | 多个 thread 共享 instruction stream、通常以 Warp 为 issue unit 的 GPU Execution Model。 |
+| **Warp** | NVIDIA GPU 中共同 issue instruction 的 thread group，也是 dynamic Latency Hiding 的重要 unit。 |
+| **Static Scheduling** | 在 compile time 确定 Operation timing、Placement 或 resource allocation 的 plan；不表示 system 不存在 Runtime。 |
+| **Dynamic Scheduling** | 在 execution time 根据 readiness、resource availability 或 priority 选择下一项 work。 |
+| **Latency Hiding** | 用其他 executable work、Pipeline Overlap 或 Wavefront 覆盖 waiting time，而不是消除 Latency。 |
+| **Occupancy** | GPU 上 resident work 与 register、Shared Memory、thread 和 architecture limit 的关系；它不等同于 Utilization。 |
+| **Backpressure** | downstream buffer 或 Pipeline Stage 无法继续接收 data 时，对 upstream producer 形成的 blocking。 |
+| **Wavefront** | Dependency 已满足的 work 沿 array 或 execution space 逐步推进形成的 activity front。 |
+| **Critical Path** | Dependency graph 中决定 minimum Completion time 的 longest time-weighted path。 |
+| **Pipeline Overlap** | 在 Dependency 与 resource 允许时 concurrent execution compute、Data Movement 或 Communication。 |
 
-## 同步与所有权
+## Memory and Data Movement
 
-| 术语 | 本项目中的含义 |
+| Canonical term | Chinese explanation |
 | --- | --- |
-| **Barrier** | 参与者在 phase boundary 汇合的同步对象；它不自动替代所有 memory-order 要求。 |
-| **Fence** | 约束指定内存访问的顺序或可见性，本身通常不承担参与者汇合。 |
-| **Event** | 记录任务完成并建立后续依赖的 runtime 对象。 |
-| **Completion** | 某层工作已经完成的证明；issue、执行结束、memory visibility 与 remote delivery 是不同时间点。 |
-| **Ownership** | 哪个 producer、consumer 或 stage 当前有权读写或复用数据、buffer 与资源。 |
+| **Cache** | 由 hardware 或 software policy 管理、用于利用 locality 的 storage level；visibility 与 replacement semantics 取决于 architecture。 |
+| **Scratchpad / Local SRAM** | 由 software 显式管理的 on-chip storage，不与 transparent Cache 混用。 |
+| **Shared Memory** | NVIDIA GPU 中由 Cooperative Thread Array (CTA) 内 thread 共享、由 program 显式管理的 on-chip memory。 |
+| **Circular Buffer (CB)** | Tensix Kernel 之间交换 Tile、表达 capacity 和 Ownership 的 bounded-buffer protocol。 |
+| **High Bandwidth Memory (HBM)** | 面向 high aggregate bandwidth 的 off-chip memory；bandwidth 必须绑定具体 generation、configuration 和 measurement boundary。 |
+| **Vector Memory (VMEM)** | TPU TensorCore 中供 vector 和 matrix compute 使用的 software-managed memory level。 |
+| **Network on Chip (NoC)** | 连接 chip 内 core、SRAM 或 functional unit 的 network。 |
+| **Data Movement** | data 在 register、on-chip memory、HBM、NoC 或 interconnect 之间的 transfer。 |
+| **Reuse** | 同一份 data 在离开当前 storage level 前被多个 Operation 或 Tile 再次使用。 |
+| **Working Set** | 某个 execution interval 内必须同时可用的 parameter、activation、state 和 temporary buffer。 |
 
-## 编译与软件栈
+## Synchronization and Ownership
 
-| 术语 | 本项目中的含义 |
+| Canonical term | Chinese explanation |
 | --- | --- |
-| **Lowering** | 把高层图或算子逐步转换为更接近目标硬件的表示和操作。 |
-| **Fusion** | 合并算子或循环，减少中间结果落盘、launch 和数据移动。 |
-| **Memory planning** | 在编译期或 runtime 安排 buffer 的位置、大小、生命周期与复用。 |
-| **Runtime** | 负责加载、提交、依赖、内存生命周期和设备协作的软件层，不等同于编译器或硬件调度器。 |
-| **PJRT** | XLA 生态用于连接 compiled program 与设备执行的统一 runtime 接口。 |
-| **TT-Metalium** | Tenstorrent 的低层设备编程环境，负责 core、kernel、buffer 与 NoC 相关控制。 |
+| **Barrier** | participant 在 phase boundary rendezvous 的 synchronization object；它不自动替代全部 memory-order requirement。 |
+| **Fence** | 约束指定 memory access 的 order 或 visibility，通常不承担 participant rendezvous。 |
+| **Event** | 记录 task Completion 并建立 downstream Dependency 的 Runtime object。 |
+| **Completion** | 某一 system level 对 work 已完成的 proof；issue、execution finish、memory visibility 和 remote delivery 是不同时间点。 |
+| **Ownership** | 当前有权 read、write 或 reuse data、buffer 与 resource 的 producer、consumer 或 Pipeline Stage。 |
+| **Collective Communication** | 多个 device 共同参与的 Communication Operation，例如 All-Reduce；cost 和 Completion semantics 取决于 topology、Runtime 和 API。 |
 
-## 证据边界
+## Compiler and Software Stack
 
-项目统一采用[资料目录](./sources/catalog.md)中的证据规则：区分同行评审结果、官方规格、开源行为、专利实施例和教学推导，并保留代际、精度、shape、topology 与系统边界。
+| Canonical term | Chinese explanation |
+| --- | --- |
+| **Intermediate Representation (IR)** | Compiler 在不同 abstraction level 表达 program semantics、Dependency、layout 或 target Operation 的 representation。 |
+| **Lowering** | 把 high-level graph 或 Operation 逐步转换为更接近 target hardware 的 IR 和 Operation。 |
+| **Fusion** | 合并 Operation 或 loop，以减少 intermediate materialization、Kernel Launch 和 Data Movement。 |
+| **Tiling** | 将 tensor 或 iteration space 划分为适合 parallel execution 与 storage capacity 的 Tile。 |
+| **Bufferization** | 将 tensor value 映射为具有 storage、lifetime 和 alias semantics 的 buffer。 |
+| **Memory Planning** | 在 compile time 或 Runtime 安排 buffer Placement、size、lifetime 和 Reuse。 |
+| **Placement** | 将 Operation、Tile、buffer 或 task 分配到具体 core、device 或 memory location。 |
+| **Sharding** | 按 tensor dimension、Operation 或 state 将 Workload 分布到多个 execution resource。 |
+| **Kernel** | 在 target device 上执行的 program unit；boundary、launch model 和 specialization 依 architecture 与 Runtime 而定。 |
+| **Runtime** | 负责 program loading、submission、Dependency、memory lifetime 和 device coordination 的 software layer。 |
+| **Parallel Runtime Interface (PJRT)** | XLA ecosystem 用于连接 compiled program 与 device execution 的 Runtime interface。 |
+| **TT-Metalium** | Tenstorrent 的 low-level programming environment，用于控制 core、Kernel、buffer 与 NoC。 |
+
+## Optimization and Co-design
+
+| Canonical term | Chinese explanation |
+| --- | --- |
+| **Bottleneck** | 当前 boundary 下限制 end-to-end objective 的 dominant resource 或 Critical Path component。 |
+| **Compute-bound** | Runtime 主要受 effective compute throughput 限制。 |
+| **Memory-bound** | Runtime 主要受指定 memory level 的 effective bandwidth 或 access behavior 限制。 |
+| **Capacity-bound** | Working Set 超过 available capacity，迫使 system 改变 batch、paging、Sharding、recomputation 或 Data Type。 |
+| **Quantization** | 用较低 precision representation 表达 weight、activation 或 state，并定义 scaling、rounding 与 accumulation contract。 |
+| **Model–Hardware Co-design** | 联动调整 model structure、numerics、software mapping 或 hardware contract，以解除无法通过 local Optimization 充分解决的 constraint。 |
+| **Roofline Model** | 用 Arithmetic Intensity、effective compute rate 和 effective bandwidth 建立 performance upper bound 或 Runtime lower bound 的 model。 |
+
+## Serving and Validation
+
+| Canonical term | Chinese explanation |
+| --- | --- |
+| **Time to First Token (TTFT)** | request 到达后直到第一个 output token visible 的 elapsed time。 |
+| **Inter-token Latency (ITL)** | streaming generation 中相邻 output token 之间的 elapsed time。 |
+| **Service-Level Objective (SLO)** | service 对 Latency、throughput、availability 或 quality 等 metric 的 target constraint。 |
+| **Utilization** | resource 在 measurement interval 内执行 useful work 的 fraction，必须说明 denominator 和 observation boundary。 |
+| **Effective Bandwidth** | Workload 在指定 boundary 上实际获得的 Data Movement rate，而不是 interface peak specification。 |
+| **Experiment Contract** | 在 measurement 前固定 question、Workload、prediction、control、metric 和 falsification criterion 的 record。 |
+
+## Evidence Boundary
+
+项目统一遵循[Source Catalog](./sources/catalog.md)中的 evidence rules：区分 peer-reviewed result、official specification、open-source behavior、patent embodiment 和 teaching inference，并保留 generation、Data Type、Tensor Shape、topology 与 system boundary。

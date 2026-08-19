@@ -8,7 +8,7 @@ const siteRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const pages = [
   {
     file: "dist/client/index.html",
-    markers: ["VPSidebar", "VPDocAside", "Full-Stack Backbone"],
+    markers: ["VPSidebar", "VPDocAside", "全栈主干"],
   },
   {
     file: "dist/client/notes/model-to-hardware-mapping.html",

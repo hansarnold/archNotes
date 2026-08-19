@@ -1,6 +1,6 @@
 ---
-title: 模型—硬件协同设计
-description: 从模型结构、数值表示、软件映射和硬件能力之间的约束出发，建立可验证的双向设计方法。
+title: Model–Hardware Co-design
+description: 从 model structure、numerics、Software Mapping 和 Hardware capability 之间的 constraint 出发，建立可验证的 bidirectional design method。
 documentType: 全栈主干
 topics:
   - codesign
@@ -9,7 +9,7 @@ topics:
   - numerics
 ---
 
-# 模型—硬件协同设计
+# Model–Hardware Co-design
 
 ## 核心问题
 

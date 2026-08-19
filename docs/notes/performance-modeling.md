@@ -1,6 +1,6 @@
 ---
-title: 性能建模与验证
-description: 用统一单位、分层模型和实验契约，把架构判断与优化假设转成可预测、可测量、可反证的结论。
+title: Performance Modeling and Validation
+description: 用统一 unit、layered model 和 Experiment Contract，把 Architecture judgment 与 Optimization hypothesis 转成可预测、可测量、可反证的 conclusion。
 documentType: 全栈主干
 topics:
   - performance
@@ -9,7 +9,7 @@ topics:
   - validation
 ---
 
-# 性能建模与验证
+# Performance Modeling and Validation
 
 ## 核心问题
 

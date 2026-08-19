@@ -1,6 +1,6 @@
 ---
-title: 跨架构软件优化方法
-description: 用统一的瓶颈分类、优化循环和证据记录组织跨 GPU、阵列与数据流架构的软件优化。
+title: Cross-Architecture Software Optimization
+description: 用统一的 Bottleneck classification、Optimization loop 和 evidence record 组织跨 GPU、array 与 Dataflow Architecture 的 Software Optimization。
 documentType: 全栈主干
 topics:
   - optimization
@@ -9,7 +9,7 @@ topics:
   - runtime
 ---
 
-# 跨架构软件优化方法
+# Cross-Architecture Software Optimization
 
 ## 核心问题
 

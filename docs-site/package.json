@@ -9,7 +9,7 @@
     "diagrams": "node scripts/render-diagrams.mjs --extract",
     "diagrams:check": "node scripts/render-diagrams.mjs --check",
     "dev": "vitepress dev .",
-    "build": "npm run check:content && vitepress build . && node scripts/prepare-sites-build.mjs && npm run test:sites",
+    "build": "npm run check:content && vitepress build . && node scripts/check-built-navigation.mjs && node scripts/prepare-sites-build.mjs && npm run test:sites",
     "preview": "vitepress preview .",
     "test:sites": "node --test tests/sites-worker.test.mjs"
   },

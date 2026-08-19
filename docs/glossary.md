@@ -11,7 +11,7 @@ topics: ["Terminology", "Layer boundaries", "Execution model"]
 
 本页是全站的 terminology contract。term、acronym、capitalization、API name、ISA name 和 metric name 始终保留 canonical English；Chinese 只解释概念，不提供一套替代性的中文技术名词。
 
-English explanations are available in the [English Glossary](./en/glossary.md).
+对应的 English 解释见 [English Glossary](./en/glossary.md)。
 
 ## Model and Workload
 

@@ -18,7 +18,7 @@ const item = (relativePath, title) => ({ text: title || pageTitle(relativePath),
 const overviewSidebar = [
   { text: "开始", items: [item("", "总览"), item("curriculum", "课程蓝图"), item("topics", "主题矩阵"), item("notes/learning-roadmap", "学习路线")] },
   {
-    text: "Full-Stack Backbone",
+    text: "全栈主干",
     collapsed: false,
     items: [
       item("notes/model-computation-primitives", "Model Computation and Workload"),

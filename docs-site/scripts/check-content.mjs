@@ -27,6 +27,7 @@ const markdownFiles = files.filter((file) => file.endsWith(".md"));
 const diagramSources = files.filter((file) => file.endsWith(".mmd"));
 const diagramAssets = files.filter((file) => file.endsWith(".svg"));
 const duplicateParagraphs = new Map();
+const cjkPattern = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
 const pairedLocalePaths = [
   "index.md",
   "curriculum.md",
@@ -45,15 +46,44 @@ for (const relativePath of pairedLocalePaths) {
   if (!existsSync(chinesePath)) errors.push(`Missing Chinese locale page: docs/${relativePath}`);
   if (!existsSync(englishPath)) errors.push(`Missing English locale page: docs/en/${relativePath}`);
   if (existsSync(chinesePath) && existsSync(englishPath)) {
-    const chineseTitle = readFileSync(chinesePath, "utf8").match(/^title:\s*["']?(.+?)["']?\s*$/m)?.[1];
-    const englishTitle = readFileSync(englishPath, "utf8").match(/^title:\s*["']?(.+?)["']?\s*$/m)?.[1];
+    const chineseSource = readFileSync(chinesePath, "utf8");
+    const englishSource = readFileSync(englishPath, "utf8");
+    const chineseTitle = chineseSource.match(/^title:\s*["']?(.+?)["']?\s*$/m)?.[1];
+    const englishTitle = englishSource.match(/^title:\s*["']?(.+?)["']?\s*$/m)?.[1];
     if (chineseTitle !== englishTitle) {
       errors.push(`Locale pair must share one canonical English title: docs/${relativePath}`);
+    }
+
+    const frontmatter = chineseSource.match(/^---[\s\S]*?---\s*/)?.[0] ?? "";
+    const bodyLineOffset = frontmatter ? frontmatter.split("\n").length - 1 : 0;
+    const bodyLines = chineseSource.slice(frontmatter.length).split("\n");
+    let insideFence = false;
+    for (const [lineIndex, line] of bodyLines.entries()) {
+      if (/^\s*```/.test(line)) {
+        insideFence = !insideFence;
+        continue;
+      }
+      if (insideFence) continue;
+
+      const secondLevelHeading = line.match(/^##\s+(.+)/)?.[1];
+      if (relativePath !== "glossary.md" && secondLevelHeading && !cjkPattern.test(secondLevelHeading)) {
+        errors.push(`docs/${relativePath}:${bodyLineOffset + lineIndex + 1}: Chinese locale section heading must use Chinese narrative`);
+      }
+
+      if (
+        !line.trim()
+        || cjkPattern.test(line)
+        || /^\s*(?:#|\||!\[|<!--|<)/.test(line)
+      ) continue;
+
+      const latinLetterCount = line.match(/[A-Za-z]/g)?.length ?? 0;
+      if (latinLetterCount >= 20 && /[.?!:]\s*$/.test(line)) {
+        errors.push(`docs/${relativePath}:${bodyLineOffset + lineIndex + 1}: Chinese locale contains a full English sentence`);
+      }
     }
   }
 }
 
-const cjkPattern = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
 const readmeSource = readFileSync(path.join(repositoryRoot, "README.md"), "utf8");
 if (cjkPattern.test(readmeSource)) errors.push("README.md must remain English-only");
 

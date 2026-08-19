@@ -115,18 +115,6 @@ const englishSidebar = [
   },
 ];
 
-const translatedEnglishPaths = new Set([
-  "index",
-  "curriculum",
-  "glossary",
-  "notes/model-computation-primitives",
-  "notes/model-to-hardware-mapping",
-  "notes/ai-accelerator-architecture-comparison",
-  "notes/software-optimization-methodology",
-  "notes/model-hardware-codesign",
-  "notes/performance-modeling",
-]);
-
 const knownNotePaths = new Set([overviewSidebar, nvidiaSidebar, groqSidebar, tensixSidebar, tpuSidebar].flat(2).flatMap((entry) => entry?.items || []).map((entry) => entry.link));
 const otherNotes = readdirSync(path.join(contentRoot, "notes"))
   .filter((name) => name.endsWith(".md"))
@@ -148,12 +136,61 @@ const sidebars = {
   "/": overviewSidebar,
 };
 
+const rootLocaleThemeConfig = {
+  nav: [
+    { text: "总览", link: "/", activeMatch: "^/(?:topics|notes/(?:learning-roadmap|ai-accelerator-architecture-comparison|inference-stack))?$" },
+    { text: "NVIDIA GPU", link: "/notes/nvidia-gpu-synchronization", activeMatch: "^/notes/nvidia" },
+    { text: "Groq TSP", link: "/notes/architecture", activeMatch: "^/(?:notes/(?:architecture|instruction-flow|compiler|software-optimization|lpu-vs-gpu)|labs/static_scheduler)" },
+    { text: "Tensix", link: "/notes/tenstorrent-architecture", activeMatch: "^/(?:notes/tenstorrent|labs/tensix_pipeline)" },
+    { text: "TPU", link: "/notes/google-tpu-architecture", activeMatch: "^/(?:notes/google-tpu|labs/systolic_array)" },
+    {
+      text: "实验",
+      items: [
+        { text: "静态时空调度", link: "/labs/static_scheduler" },
+        { text: "Tensix 流水与背压", link: "/labs/tensix_pipeline" },
+        { text: "Systolic Array 波前", link: "/labs/systolic_array" },
+      ],
+    },
+  ],
+  sidebar: sidebars,
+  outline: { level: [2, 3], label: "本页目录" },
+  docFooter: { prev: "上一篇", next: "下一篇" },
+  lastUpdated: { text: "最后更新" },
+  editLink: {
+    pattern: ({ filePath }) => `https://github.com/hansarnold/archNotes/edit/main/docs/${filePath}`,
+    text: "在 GitHub 上编辑此页",
+  },
+  darkModeSwitchLabel: "外观",
+  sidebarMenuLabel: "文档导航",
+  returnToTopLabel: "返回顶部",
+};
+
+const englishLocaleThemeConfig = {
+  nav: [
+    { text: "Overview", link: "/en/" },
+    { text: "Curriculum", link: "/en/curriculum" },
+    { text: "Architecture", link: "/en/notes/ai-accelerator-architecture-comparison" },
+    { text: "Glossary", link: "/en/glossary" },
+  ],
+  sidebar: { "/en/": englishSidebar },
+  outline: { level: [2, 3], label: "On this page" },
+  docFooter: { prev: "Previous", next: "Next" },
+  lastUpdated: { text: "Last updated" },
+  editLink: {
+    pattern: ({ filePath }) => `https://github.com/hansarnold/archNotes/edit/main/docs/${filePath}`,
+    text: "Edit this page on GitHub",
+  },
+  darkModeSwitchLabel: "Appearance",
+  sidebarMenuLabel: "Documentation navigation",
+  returnToTopLabel: "Return to top",
+};
+
 export default defineConfig({
   title: "archNotes",
   description: "Learning notes and executable ideas for AI accelerator architecture.",
   locales: {
-    root: { label: "简体中文", lang: "zh-CN", link: "/" },
-    en: { label: "English", lang: "en-US", link: "/en/" },
+    root: { label: "简体中文", lang: "zh-CN", link: "/", themeConfig: rootLocaleThemeConfig },
+    en: { label: "English", lang: "en-US", link: "/en/", themeConfig: englishLocaleThemeConfig },
   },
   srcDir: "../docs",
   outDir: "dist/client",
@@ -201,63 +238,7 @@ export default defineConfig({
   themeConfig: {
     siteTitle: "archNotes",
     logo: false,
-    i18nRouting(_data, route, targetLocale) {
-      const relativePath = route.data.relativePath.replace(/\.md$/, "").replace(/^en\//, "");
-      const normalizedPath = relativePath === "index" ? "" : relativePath;
-      if (targetLocale === "en") {
-        return translatedEnglishPaths.has(relativePath) ? `/en/${normalizedPath}${route.hash || ""}` : "/en/";
-      }
-      return `/${normalizedPath}${route.hash || ""}`;
-    },
-    locales: {
-      root: {
-        nav: [
-          { text: "总览", link: "/", activeMatch: "^/(?:topics|notes/(?:learning-roadmap|ai-accelerator-architecture-comparison|inference-stack))?$" },
-          { text: "NVIDIA GPU", link: "/notes/nvidia-gpu-synchronization", activeMatch: "^/notes/nvidia" },
-          { text: "Groq TSP", link: "/notes/architecture", activeMatch: "^/(?:notes/(?:architecture|instruction-flow|compiler|software-optimization|lpu-vs-gpu)|labs/static_scheduler)" },
-          { text: "Tensix", link: "/notes/tenstorrent-architecture", activeMatch: "^/(?:notes/tenstorrent|labs/tensix_pipeline)" },
-          { text: "TPU", link: "/notes/google-tpu-architecture", activeMatch: "^/(?:notes/google-tpu|labs/systolic_array)" },
-          {
-            text: "实验",
-            items: [
-              { text: "静态时空调度", link: "/labs/static_scheduler" },
-              { text: "Tensix 流水与背压", link: "/labs/tensix_pipeline" },
-              { text: "Systolic Array 波前", link: "/labs/systolic_array" },
-            ],
-          },
-        ],
-        sidebar: sidebars,
-        outline: { level: [2, 3], label: "本页目录" },
-        docFooter: { prev: "上一篇", next: "下一篇" },
-        lastUpdated: { text: "最后更新" },
-        editLink: {
-          pattern: ({ filePath }) => `https://github.com/hansarnold/archNotes/edit/main/docs/${filePath}`,
-          text: "在 GitHub 上编辑此页",
-        },
-        darkModeSwitchLabel: "外观",
-        sidebarMenuLabel: "文档导航",
-        returnToTopLabel: "返回顶部",
-      },
-      en: {
-        nav: [
-          { text: "Overview", link: "/en/" },
-          { text: "Curriculum", link: "/en/curriculum" },
-          { text: "Architecture", link: "/en/notes/ai-accelerator-architecture-comparison" },
-          { text: "Glossary", link: "/en/glossary" },
-        ],
-        sidebar: { "/en/": englishSidebar },
-        outline: { level: [2, 3], label: "On this page" },
-        docFooter: { prev: "Previous", next: "Next" },
-        lastUpdated: { text: "Last updated" },
-        editLink: {
-          pattern: ({ filePath }) => `https://github.com/hansarnold/archNotes/edit/main/docs/${filePath}`,
-          text: "Edit this page on GitHub",
-        },
-        darkModeSwitchLabel: "Appearance",
-        sidebarMenuLabel: "Documentation navigation",
-        returnToTopLabel: "Return to top",
-      },
-    },
+    i18nRouting: false,
     search: {
       provider: "local",
       options: {

@@ -1,0 +1,32 @@
+flowchart LR
+    subgraph SW["Software work pipeline"]
+        CPU["CPU / upstream producer"]
+        DAG["Stream or graph dependency"]
+        GRID["Grid admitted"]
+        NEXT["Downstream stream / host"]
+    end
+
+    subgraph SM["SM scheduling pipeline"]
+        PLACE["CTA / cluster resident"]
+        WARP["Producer warp eligible"]
+        ISSUE["Load or async issue"]
+        CONS["Consumer warp eligible"]
+    end
+
+    subgraph DATA["Data and execution pipeline"]
+        GMEM["Global-memory tile"]
+        ASYNC["Copy / TMA engine"]
+        SMEM["Shared-memory stage"]
+        TENSOR["Tensor / arithmetic pipeline"]
+        OUT["Output tile"]
+    end
+
+    CPU -->|"event / stream edge"| DAG
+    DAG --> GRID
+    GRID --> PLACE --> WARP --> ISSUE
+    DAG -.->|"payload dependency satisfied"| GMEM
+    GMEM --> ASYNC --> SMEM
+    ISSUE -.->|"submits work"| ASYNC
+    SMEM -.->|"completion receipt"| CONS
+    CONS --> TENSOR
+    TENSOR --> OUT -->|"kernel completion / event"| NEXT

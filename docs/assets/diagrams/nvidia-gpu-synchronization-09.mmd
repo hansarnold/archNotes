@@ -1,0 +1,8 @@
+flowchart LR
+    K["kernel K writes output"] --> DRAIN["stores / atomics drain"]
+    DRAIN --> DONE["grid completion"]
+    DONE --> E(("event K_done"))
+    E --> K2["stream B consumer"]
+    E --> HOST["host wait / query"]
+    K2 --> LAST["last consumer done"]
+    LAST --> FREE["freeAsync / pool reuse"]

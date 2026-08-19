@@ -4,15 +4,20 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "sync:notes": "node scripts/sync-notes.mjs",
+    "check:content": "node scripts/check-content.mjs",
+    "check": "npm run check:content",
+    "diagrams": "node scripts/render-diagrams.mjs --extract",
+    "diagrams:check": "node scripts/render-diagrams.mjs --check",
     "dev": "vitepress dev .",
-    "build": "vitepress build . && node scripts/prepare-sites-build.mjs",
+    "build": "npm run check:content && vitepress build . && node scripts/prepare-sites-build.mjs && npm run test:sites",
     "preview": "vitepress preview .",
     "test:sites": "node --test tests/sites-worker.test.mjs"
   },
   "dependencies": {
-    "mermaid": "^11.16.1",
     "vitepress": "^1.6.4",
     "vue": "^3.5.41"
+  },
+  "devDependencies": {
+    "mermaid": "^11.16.1"
   }
 }

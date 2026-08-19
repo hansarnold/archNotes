@@ -1,0 +1,31 @@
+flowchart TB
+    subgraph SM["NVIDIA GPU SM"]
+        WS["Warp schedulers / dispatch"]
+        TS["Resident warp state\nPC / registers / masks"]
+        CC["Scalar CUDA pipelines"]
+        TC["Tensor Cores"]
+        LS["Load / Store + coalescing"]
+        SFU["Special function units"]
+        MEM["Shared memory / L1"]
+        WS --> CC
+        WS --> TC
+        WS --> LS
+        WS --> SFU
+        TS --> WS
+        LS <--> MEM
+    end
+
+    subgraph TT["Tenstorrent Tensix core"]
+        R["Reader data-movement RISC-V"]
+        W["Writer data-movement RISC-V"]
+        CB["Local SRAM + circular buffers"]
+        UP["Unpack control"]
+        MATH["Matrix / vector engines"]
+        PK["Pack control"]
+        NOC["NoC routers"]
+        R --> CB
+        CB --> UP --> MATH --> PK --> CB
+        CB --> W
+        NOC <--> R
+        NOC <--> W
+    end

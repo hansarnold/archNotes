@@ -1,0 +1,5 @@
+flowchart LR
+    A0["stream A: producer"] --> A1["record input_ready"]
+    A1 --> E(("event receipt"))
+    E --> B0["stream B: wait"] --> B1["consumer"]
+    CPU["CPU"] -.->|"enqueue only"| A0

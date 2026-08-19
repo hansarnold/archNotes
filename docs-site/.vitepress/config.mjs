@@ -1,12 +1,10 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { defineConfig } from "vitepress";
-import { syncNotes } from "../scripts/sync-notes.mjs";
-
-syncNotes();
 
 const siteRoot = path.resolve(import.meta.dirname, "..");
-const contentRoot = path.join(siteRoot, "content");
+const repositoryRoot = path.resolve(siteRoot, "..");
+const contentRoot = path.join(repositoryRoot, "docs");
 
 const pageTitle = (relativePath) => {
   const sourcePath = path.join(contentRoot, `${relativePath}.md`);
@@ -50,7 +48,7 @@ const overviewSidebar = [
     collapsed: true,
     items: [item("labs/static_scheduler", "静态时空调度"), item("labs/tensix_pipeline", "Tensix 流水与背压"), item("labs/systolic_array", "Systolic Array 波前")],
   },
-  { text: "参考", items: [item("sources/catalog", "来源目录")] },
+  { text: "参考", items: [item("glossary", "术语表"), item("sources/catalog", "来源目录")] },
 ];
 
 const nvidiaSidebar = [
@@ -60,7 +58,7 @@ const nvidiaSidebar = [
     items: [item("notes/lpu-vs-gpu", "LPU/TSP 与 GPU"), item("notes/tenstorrent-rethinking-gpu-sm", "GPU SM 与 Tensix")],
   },
   { text: "异构系统", items: [item("notes/nvidia-groq3-heterogeneous-inference", "Rubin GPU + Groq 3 LPX")] },
-  { text: "参考", items: [item("sources/catalog", "来源目录")] },
+  { text: "参考", items: [item("glossary", "术语表"), item("sources/catalog", "来源目录")] },
 ];
 
 const groqSidebar = [
@@ -69,20 +67,21 @@ const groqSidebar = [
   { text: "软件优化", items: [item("notes/software-optimization", "软件优化方法"), item("notes/inference-stack", "推理框架与运行时")] },
   { text: "比较与系统", items: [item("notes/lpu-vs-gpu", "LPU/TSP 与 GPU"), item("notes/groq-tenstorrent-comparison", "Groq、Tensix 与 GPU"), item("notes/nvidia-groq3-heterogeneous-inference", "GPU + LPX 异构推理")] },
   { text: "实验", items: [item("labs/static_scheduler", "静态时空调度")] },
+  { text: "参考", items: [item("glossary", "术语表"), item("sources/catalog", "来源目录")] },
 ];
 
 const tensixSidebar = [
   { text: "Tenstorrent Tensix", items: [item("notes/tenstorrent-architecture", "架构与软件栈")] },
   { text: "机制与比较", items: [item("notes/tenstorrent-rethinking-gpu-sm", "从 GPU SM 到 Tensix"), item("notes/groq-tenstorrent-comparison", "Groq、Tensix 与 GPU")] },
   { text: "实验", items: [item("labs/tensix_pipeline", "流水线与背压")] },
-  { text: "参考", items: [item("sources/catalog", "来源目录")] },
+  { text: "参考", items: [item("glossary", "术语表"), item("sources/catalog", "来源目录")] },
 ];
 
 const tpuSidebar = [
   { text: "Google TPU", items: [item("notes/google-tpu-architecture", "Systolic Array、XLA 与 Pod")] },
   { text: "横向比较", items: [item("notes/ai-accelerator-architecture-comparison", "四类架构统一对照")] },
   { text: "实验", items: [item("labs/systolic_array", "Systolic Array 波前")] },
-  { text: "参考", items: [item("sources/catalog", "来源目录")] },
+  { text: "参考", items: [item("glossary", "术语表"), item("sources/catalog", "来源目录")] },
 ];
 
 const knownNotePaths = new Set([overviewSidebar, nvidiaSidebar, groqSidebar, tensixSidebar, tpuSidebar].flat(2).flatMap((entry) => entry?.items || []).map((entry) => entry.link));
@@ -106,13 +105,11 @@ const sidebars = {
   "/": overviewSidebar,
 };
 
-const sourceRoots = [path.resolve(siteRoot, "../notes"), path.resolve(siteRoot, "../sources"), path.resolve(siteRoot, "../labs")];
-
 export default defineConfig({
   title: "archNotes",
   description: "Learning notes and executable ideas for AI accelerator architecture.",
   lang: "zh-CN",
-  srcDir: "content",
+  srcDir: "../docs",
   outDir: "dist/client",
   cleanUrls: true,
   lastUpdated: true,
@@ -138,33 +135,22 @@ export default defineConfig({
     return tags;
   },
   vite: {
-    plugins: [
-      {
-        name: "archnotes-source-sync",
-        configureServer(server) {
-          server.watcher.add(sourceRoots);
-          server.watcher.on("change", (changedPath) => {
-            if (!changedPath.endsWith(".md") || !sourceRoots.some((root) => changedPath.startsWith(root))) return;
-            syncNotes();
-            server.ws.send({ type: "full-reload" });
-          });
+    resolve: {
+      alias: [
+        {
+          find: "vue/server-renderer",
+          replacement: path.join(siteRoot, "node_modules", "vue", "server-renderer", "index.mjs"),
         },
-      },
-    ],
+        {
+          find: "vue",
+          replacement: path.join(siteRoot, "node_modules", "vue", "index.mjs"),
+        },
+      ],
+    },
   },
   markdown: {
     theme: { light: "github-light", dark: "github-dark" },
     lineNumbers: true,
-    config(md) {
-      const fallbackFence = md.renderer.rules.fence?.bind(md.renderer.rules);
-      md.renderer.rules.fence = (tokens, index, options, env, self) => {
-        if (tokens[index].info.trim() === "mermaid") {
-          const encoded = Buffer.from(tokens[index].content, "utf8").toString("base64");
-          return `<ClientOnly><MermaidDiagram code="${encoded}" /></ClientOnly>`;
-        }
-        return fallbackFence ? fallbackFence(tokens, index, options, env, self) : self.renderToken(tokens, index, options);
-      };
-    },
   },
   themeConfig: {
     siteTitle: "archNotes",
@@ -205,11 +191,7 @@ export default defineConfig({
     lastUpdated: { text: "最后更新" },
     editLink: {
       pattern: ({ filePath }) => {
-        const sourcePath = filePath.startsWith("notes/") || filePath.startsWith("sources/")
-          ? filePath
-          : filePath.startsWith("labs/")
-            ? `labs/${filePath.split("/").at(-1).replace(/\.md$/, "")}/README.md`
-            : "README.md";
+        const sourcePath = `docs/${filePath}`;
         return `https://github.com/hansarnold/archNotes/edit/main/${sourcePath}`;
       },
       text: "在 GitHub 上编辑此页",

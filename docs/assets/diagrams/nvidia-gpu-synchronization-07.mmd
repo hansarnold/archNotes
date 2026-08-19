@@ -1,0 +1,6 @@
+stateDiagram-v2
+    [*] --> Empty
+    Empty --> Filling: producer acquires
+    Filling --> Full: copy completion publishes
+    Full --> Consuming: consumer acquires
+    Consuming --> Empty: consumer releases

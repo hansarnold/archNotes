@@ -1,0 +1,8 @@
+flowchart TD
+    F["JAX / PyTorch-XLA / TensorFlow on supported generations"] --> SHLO["StableHLO / HLO"]
+    SHLO --> XLA["XLA optimization + TPU backend"]
+    XLA --> SPMD["GSPMD sharding / collectives"]
+    SPMD --> PJRT["PJRT + libtpu runtime"]
+    PJRT --> TPU["TensorCore / MXU / VMEM / HBM / ICI"]
+    P["Pallas custom kernel"] --> M["Mosaic TPU lowering"]
+    M --> TPU

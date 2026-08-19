@@ -1,0 +1,14 @@
+flowchart TD
+    S["Tile did not progress"] --> A{"Task admitted?"}
+    A -->|"no"| SW["Inspect stream / event / graph / context queue"]
+    A -->|"yes"| R{"CTA resident?"}
+    R -->|"no"| OCC["Inspect resources, occupancy, cluster constraints"]
+    R -->|"yes"| E{"Warp eligible?"}
+    E -->|"no"| WHY{"What receipt is missing?"}
+    WHY --> SB["Scoreboard operand"]
+    WHY --> BAR["Barrier participants"]
+    WHY --> MB["mbarrier / async transaction"]
+    WHY --> MEM["membar / visibility"]
+    E -->|"yes"| P{"Selected and issued efficiently?"}
+    P -->|"no"| PIPE["Dispatch / execution-path pressure"]
+    P -->|"yes"| LIFE["Check downstream completion and ownership reuse"]

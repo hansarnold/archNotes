@@ -1,0 +1,10 @@
+flowchart TD
+    GRID["Admitted grid"] --> CHECK{"SM resources available?"}
+    CHECK -->|"no"| QUEUE["CTA remains pending"]
+    QUEUE --> CHECK
+    CHECK -->|"yes"| CTA["CTA becomes resident"]
+    CTA --> ACTIVE["Warps become active"]
+    ACTIVE --> ELIG{"Next instruction eligible?"}
+    ELIG -->|"yes"| ISSUE["Scheduler may select and issue"]
+    ELIG -->|"no"| WAIT["Dependency / barrier / resource wait"]
+    WAIT --> ELIG

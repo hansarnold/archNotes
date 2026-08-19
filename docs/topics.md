@@ -1,17 +1,30 @@
 ---
 title: 主题矩阵
-description: 按系统层级和架构家族交叉检索 AI 加速器学习笔记。
+description: 按六条学习主线、系统层级和架构家族交叉检索 AI 计算全栈协同设计文档。
 outline: deep
 products: ["跨架构"]
 documentType: "主题索引"
-topics: ["计算组织", "控制与调度", "数据移动", "软件栈", "系统扩展"]
+topics: ["模型计算", "全栈映射", "硬件架构", "软件优化", "协同设计", "性能验证"]
 ---
 
 # 主题矩阵
 
-一篇架构文章通常同时涉及计算、存储、调度和软件栈，因此不适合被强行塞进唯一的“技术分类”。这里使用多维索引：侧边栏回答“这是什么类型的文档”，本页回答“它研究了哪些系统问题”。
+一篇文章通常同时涉及模型、计算、存储、调度和软件栈，因此不适合被强行塞进唯一分类。这里使用多维索引：侧边栏回答“这是什么类型的文档”，[课程蓝图](./curriculum.md)回答“它属于哪条学习主线”，本页回答“它研究了哪些系统问题”。
+
+## 六条主线
+
+| 主线 | 核心问题 | 当前入口 |
+| --- | --- | --- |
+| 模型计算与 Workload | 模型产生什么计算、数据、状态和通信？ | [计算原语与 Workload](./notes/model-computation-primitives.md) |
+| 模型到硬件的完整映射 | Operation 怎样逐层变成设备执行？ | [完整映射链](./notes/model-to-hardware-mapping.md)、[推理框架与运行时](./notes/inference-stack.md) |
+| 硬件架构 | 硬件提供什么资源，把什么责任交给软件？ | [四类加速器统一对照](./notes/ai-accelerator-architecture-comparison.md) |
+| 软件优化 | 怎样减少执行、数据移动、同步和空闲？ | [跨架构优化方法](./notes/software-optimization-methodology.md)、[Groq 优化案例](./notes/software-optimization.md) |
+| 模型—硬件协同设计 | 什么时候应该改变模型、数值或硬件契约？ | [协同设计框架](./notes/model-hardware-codesign.md)、[GPU + LPX 案例](./notes/nvidia-groq3-heterogeneous-inference.md) |
+| 性能建模与验证 | 怎样定量判断瓶颈并证伪结论？ | [性能模型与实验契约](./notes/performance-modeling.md)、三个现有实验 |
 
 ## 五个研究维度
+
+以下五个维度用于横向检查每篇文档覆盖了哪些系统问题，它们与六条学习主线互补。
 
 | 维度 | 核心问题 |
 | --- | --- |
@@ -27,7 +40,12 @@ topics: ["计算组织", "控制与调度", "数据移动", "软件栈", "系统
 
 | 文档 | 计算组织 | 控制与调度 | 数据移动 | 软件栈 | 系统扩展 |
 | --- | :---: | :---: | :---: | :---: | :---: |
+| [模型计算原语与 Workload](./notes/model-computation-primitives.md) | ● | ○ | ● |  | ○ |
+| [模型到硬件的完整映射](./notes/model-to-hardware-mapping.md) | ○ | ● | ● | ● | ○ |
 | [四类加速器统一对照](./notes/ai-accelerator-architecture-comparison.md) | ● | ● | ● | ○ | ○ |
+| [跨架构软件优化方法](./notes/software-optimization-methodology.md) | ○ | ○ | ● | ● | ○ |
+| [模型—硬件协同设计](./notes/model-hardware-codesign.md) | ○ | ○ | ● | ● | ● |
+| [性能建模与验证](./notes/performance-modeling.md) | ○ | ○ | ● | ○ | ● |
 | [NVIDIA GPU：Tile 流水与同步](./notes/nvidia-gpu-synchronization.md) | ○ | ● | ● | ○ | ○ |
 | [Groq TSP：ISCA 架构导读](./notes/architecture.md) | ● | ● | ● | ○ | ○ |
 | [Tenstorrent：Tensix 与软件栈](./notes/tenstorrent-architecture.md) | ● | ● | ● | ● | ○ |

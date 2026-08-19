@@ -9,7 +9,26 @@ topics: ["学习路径", "研究方法"]
 
 # AI Accelerator Architecture 多架构学习路线
 
-这是一张阅读顺序表，不重复各架构的完整解释。统一比较结论放在[四类加速器统一对照](./ai-accelerator-architecture-comparison.md)，共享概念放在[术语表](../glossary.md)。
+这是一张阅读顺序表，不重复六条主线的范围定义。仓库目标、文档归属和建设顺序见[课程蓝图](../curriculum.md)，统一架构比较见[四类加速器统一对照](./ai-accelerator-architecture-comparison.md)，共享概念见[术语表](../glossary.md)。
+
+## 选择学习方向
+
+- **模型向下：** 模型计算与状态 → graph/IR → compiler/runtime/kernel → hardware mapping → performance validation。
+- **硬件向上：** compute/memory/interconnect → programming contract → software optimization → model/hardware co-design。
+- **贯穿案例：** 用同一个 Transformer block 闭合两条路线，而不是分别学习两套术语。
+
+六条主线的 P0 框架均已建立。建议先沿下面的主干顺序形成闭环，再进入厂商专论和机制实验。
+
+## 六条主干的阅读顺序
+
+1. [模型计算原语与 Workload 描述](./model-computation-primitives.md)：把模型拆成 operation、tensor、状态和通信需求。
+2. [模型到硬件的完整映射](./model-to-hardware-mapping.md)：追踪图、IR、kernel、运行时和设备执行。
+3. [四类加速器统一对照](./ai-accelerator-architecture-comparison.md)：比较硬件资源、执行模型与软件契约。
+4. [跨架构软件优化方法](./software-optimization-methodology.md)：按瓶颈选择优化层和手段。
+5. [模型—硬件协同设计](./model-hardware-codesign.md)：判断何时需要修改模型、数值或硬件契约。
+6. [性能建模与验证](./performance-modeling.md)：用统一单位、预测和实验完成证据闭环。
+
+**完成标志：** 能用同一个 Transformer block 贯穿六篇文档，并产出 workload、mapping、架构约束、优化、协同决策和性能验证六份相互引用的账本。
 
 ## 0. 建立共同语言
 

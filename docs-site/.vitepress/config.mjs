@@ -16,7 +16,19 @@ const pageTitle = (relativePath) => {
 const item = (relativePath, title) => ({ text: title || pageTitle(relativePath), link: `/${relativePath}` });
 
 const overviewSidebar = [
-  { text: "开始", items: [item("", "总览"), item("topics", "主题矩阵"), item("notes/learning-roadmap", "学习路线")] },
+  { text: "开始", items: [item("", "总览"), item("curriculum", "课程蓝图"), item("topics", "主题矩阵"), item("notes/learning-roadmap", "学习路线")] },
+  {
+    text: "全栈主干",
+    collapsed: false,
+    items: [
+      item("notes/model-computation-primitives", "模型计算与 Workload"),
+      item("notes/model-to-hardware-mapping", "模型到硬件映射"),
+      item("notes/ai-accelerator-architecture-comparison", "硬件架构统一对照"),
+      item("notes/software-optimization-methodology", "软件优化方法"),
+      item("notes/model-hardware-codesign", "模型—硬件协同设计"),
+      item("notes/performance-modeling", "性能建模与验证"),
+    ],
+  },
   {
     text: "架构专论",
     collapsed: false,

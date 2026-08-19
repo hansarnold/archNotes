@@ -1,0 +1,18 @@
+{
+  "name": "docs-site",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync:notes": "node scripts/sync-notes.mjs",
+    "dev": "vitepress dev .",
+    "build": "vitepress build . && node scripts/prepare-sites-build.mjs",
+    "preview": "vitepress preview .",
+    "test:sites": "node --test tests/sites-worker.test.mjs"
+  },
+  "dependencies": {
+    "mermaid": "^11.16.1",
+    "vitepress": "^1.6.4",
+    "vue": "^3.5.41"
+  }
+}

@@ -1,0 +1,2283 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="跟随一块 tile 穿过 NVIDIA GPU 软硬件流水，理解 scoreboard、barrier、mbarrier、fence、event 与 ownership 的端到端交接。">
+  <meta name="color-scheme" content="dark">
+  <title>NVIDIA GPU 流水与同步｜一块 Tile 的八次交接</title>
+  <style>
+    :root {
+      --bg: #080b0d;
+      --panel: #101518;
+      --panel-2: #151c20;
+      --panel-3: #1a2328;
+      --text: #f2f5f1;
+      --muted: #9daaa5;
+      --line: #2a3639;
+      --green: #9eea62;
+      --green-2: #66c83f;
+      --cyan: #66d9e8;
+      --amber: #f1c75b;
+      --rose: #ff8b8b;
+      --violet: #b8a2ff;
+      --max: 1180px;
+      --radius: 20px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    p, li, dd, td, th, code, .mark, .receipt, .tile-transition {
+      overflow-wrap: anywhere;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 92px;
+    }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(102, 217, 232, .08), transparent 30rem),
+        radial-gradient(circle at 88% 8%, rgba(158, 234, 98, .08), transparent 28rem),
+        var(--bg);
+      font-family: var(--sans);
+      line-height: 1.65;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      opacity: .18;
+      background-image:
+        linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+      background-size: 32px 32px;
+      mask-image: linear-gradient(to bottom, black, transparent 75%);
+    }
+
+    a { color: inherit; }
+    button { font: inherit; }
+
+    .skip-link {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      z-index: 100;
+      padding: 10px 14px;
+      color: #071006;
+      background: var(--green);
+      border-radius: 10px;
+      transform: translateY(-160%);
+    }
+
+    .skip-link:focus { transform: translateY(0); }
+
+    .progress {
+      position: fixed;
+      inset: 0 auto auto 0;
+      z-index: 80;
+      width: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--cyan), var(--green));
+      box-shadow: 0 0 16px rgba(158, 234, 98, .45);
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 70;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      background: rgba(8, 11, 13, .82);
+      backdrop-filter: blur(18px);
+    }
+
+    .topbar-inner {
+      width: min(calc(100% - 32px), var(--max));
+      min-height: 68px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      text-decoration: none;
+      font-weight: 750;
+      letter-spacing: -.02em;
+    }
+
+    .brand-mark {
+      width: 13px;
+      height: 13px;
+      border: 3px solid var(--green);
+      border-radius: 3px;
+      box-shadow: 7px 7px 0 rgba(102, 217, 232, .45);
+    }
+
+    .topnav {
+      display: flex;
+      gap: 20px;
+      color: var(--muted);
+      font-size: .9rem;
+    }
+
+    .topnav a {
+      text-decoration: none;
+      transition: color .2s ease;
+    }
+
+    .topnav a:hover,
+    .topnav a:focus-visible { color: var(--text); }
+
+    main {
+      width: min(calc(100% - 32px), var(--max));
+      margin: 0 auto;
+    }
+
+    section { margin: 110px 0; }
+
+    .hero {
+      min-height: calc(100vh - 68px);
+      margin-top: 0;
+      padding: clamp(64px, 10vw, 124px) 0 52px;
+      display: grid;
+      align-content: center;
+      gap: 42px;
+    }
+
+    .eyebrow,
+    .section-kicker {
+      margin: 0 0 14px;
+      color: var(--green);
+      font-family: var(--mono);
+      font-size: .78rem;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+
+    h1 {
+      max-width: 980px;
+      margin-bottom: 24px;
+      font-size: clamp(3.25rem, 8vw, 7.2rem);
+      line-height: .93;
+      letter-spacing: -.075em;
+    }
+
+    h1 .accent { color: var(--green); }
+
+    .lede {
+      max-width: 780px;
+      margin-bottom: 0;
+      color: #c5ceca;
+      font-size: clamp(1.08rem, 2vw, 1.35rem);
+      line-height: 1.65;
+    }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .pill {
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(255,255,255,.025);
+      font-family: var(--mono);
+      font-size: .76rem;
+    }
+
+    .hero-thesis {
+      position: relative;
+      max-width: 980px;
+      padding: 24px 28px 24px 54px;
+      border: 1px solid rgba(158,234,98,.24);
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, rgba(158,234,98,.08), rgba(102,217,232,.025));
+      font-size: clamp(1.05rem, 2vw, 1.28rem);
+    }
+
+    .hero-thesis::before {
+      content: "→";
+      position: absolute;
+      left: 20px;
+      top: 22px;
+      color: var(--green);
+      font-family: var(--mono);
+      font-weight: 800;
+    }
+
+    .scenario-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(300px, .65fr);
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .scenario-surface,
+    .identity-panel {
+      padding: clamp(22px, 3vw, 34px);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(16, 21, 24, .84);
+    }
+
+    .scenario-label {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 26px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: .76rem;
+    }
+
+    .scenario-label strong { color: var(--cyan); font-weight: 700; }
+
+    .tensor-equation {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+      gap: 14px;
+      align-items: center;
+    }
+
+    .tensor-card {
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .tensor-name {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: .75rem;
+    }
+
+    .tensor-name span:last-child { color: var(--muted); }
+
+    .tensor-matrix {
+      position: relative;
+      height: 184px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.11);
+      border-radius: 12px;
+      background-color: #0c1113;
+      background-image:
+        repeating-linear-gradient(0deg, transparent 0 22px, rgba(255,255,255,.055) 22px 23px),
+        repeating-linear-gradient(90deg, transparent 0 22px, rgba(255,255,255,.055) 22px 23px);
+    }
+
+    .tensor-window {
+      position: absolute;
+      display: grid;
+      place-content: center;
+      min-width: 64px;
+      min-height: 52px;
+      padding: 8px;
+      border: 1px solid currentColor;
+      border-radius: 8px;
+      color: var(--cyan);
+      background: rgba(102,217,232,.18);
+      box-shadow: 0 0 0 4px rgba(102,217,232,.045);
+      text-align: center;
+      font-family: var(--mono);
+      line-height: 1.15;
+    }
+
+    .tensor-window b { font-size: .8rem; }
+    .tensor-window small { margin-top: 4px; color: #b9c6c4; font-size: .62rem; }
+
+    .tensor-window.slice-pair {
+      min-width: 0;
+      min-height: 0;
+      padding: 4px;
+      box-shadow: 0 0 0 3px rgba(102,217,232,.035);
+    }
+
+    .tensor-window.slice-pair small { font-size: .52rem; }
+    .tensor-window.pair-1 { color: #b7a0ff; background: rgba(160,133,255,.16); }
+    .tensor-window.pair-r { color: var(--amber); background: rgba(247,200,86,.15); }
+
+    .tensor-a .pair-0 { top: 27%; left: 7%; width: 23%; height: 34%; }
+    .tensor-a .pair-1 { top: 27%; left: 37%; width: 23%; height: 34%; }
+    .tensor-a .pair-r { top: 27%; right: 7%; width: 23%; height: 34%; }
+    .tensor-b .pair-0 { top: 8%; left: 30%; width: 56%; height: 22%; }
+    .tensor-b .pair-1 { top: 37%; left: 30%; width: 56%; height: 22%; }
+    .tensor-b .pair-r { bottom: 8%; left: 30%; width: 56%; height: 22%; }
+
+    .slice-ellipsis {
+      position: absolute;
+      color: #77817d;
+      font-family: var(--mono);
+      font-size: .7rem;
+    }
+
+    .tensor-a .slice-ellipsis { top: 64%; left: 61%; }
+    .tensor-b .slice-ellipsis { top: 62%; left: 17%; }
+
+    .tensor-c .tensor-window {
+      top: 20%;
+      left: 18%;
+      width: 56%;
+      height: 50%;
+      color: var(--green);
+      background: rgba(158,234,98,.19);
+      box-shadow: 0 0 0 4px rgba(158,234,98,.045);
+    }
+
+    .tensor-axis {
+      position: absolute;
+      color: #77817d;
+      font-family: var(--mono);
+      font-size: .62rem;
+    }
+
+    .tensor-axis.y { top: 8px; left: 9px; }
+    .tensor-axis.x { right: 9px; bottom: 7px; }
+
+    .equation-op {
+      display: grid;
+      justify-items: center;
+      gap: 4px;
+      color: var(--green);
+      font-family: var(--mono);
+      text-align: center;
+    }
+
+    .equation-op b { font-size: 1.35rem; }
+    .equation-op small {
+      max-width: 58px;
+      color: var(--muted);
+      font-size: .52rem;
+      font-weight: 400;
+      line-height: 1.25;
+    }
+
+    .kernel-contract {
+      display: grid;
+      grid-template-columns: minmax(250px, auto) minmax(0, 1fr);
+      gap: 16px;
+      align-items: center;
+      margin-top: 24px;
+      padding-top: 22px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: .9rem;
+    }
+
+    .kernel-contract > code {
+      padding: 10px 12px;
+      border: 1px solid rgba(158,234,98,.24);
+      border-radius: 9px;
+      color: var(--green);
+      background: rgba(158,234,98,.06);
+      white-space: normal;
+    }
+
+    .kernel-contract p { min-width: 0; margin: 0; }
+
+    .kernel-contract p code {
+      padding: 2px 5px;
+      color: var(--green);
+      border: 0;
+      border-radius: 5px;
+      background: rgba(158,234,98,.07);
+      font-size: .92em;
+    }
+
+    .reduction-ledger {
+      margin-top: 18px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(7,10,12,.46);
+    }
+
+    .ledger-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 12px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: .65rem;
+    }
+
+    .ledger-head strong { color: var(--text); }
+
+    .accumulation-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(150px, .75fr);
+      gap: 10px;
+    }
+
+    .contribution-stack {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .contribution {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+      padding: 9px;
+      border: 1px solid rgba(102,217,232,.2);
+      border-radius: 8px;
+      color: var(--cyan);
+      background: rgba(102,217,232,.065);
+      font-family: var(--mono);
+    }
+
+    .contribution.pair-1 { color: #b7a0ff; border-color: rgba(183,160,255,.2); background: rgba(160,133,255,.065); }
+    .contribution.pair-r { color: var(--amber); border-color: rgba(247,200,86,.2); background: rgba(247,200,86,.06); }
+    .contribution b { font-size: .64rem; }
+    .contribution small { color: #aeb8b4; font-size: .56rem; }
+
+    .accumulator-bank {
+      position: relative;
+      display: grid;
+      align-content: center;
+      gap: 3px;
+      min-height: 72px;
+      padding: 10px 12px 10px 18px;
+      overflow: hidden;
+      border: 1px solid rgba(158,234,98,.25);
+      border-radius: 8px;
+      color: var(--green);
+      background: rgba(158,234,98,.075);
+      font-family: var(--mono);
+    }
+
+    .accumulator-bank::before {
+      content: "Σ";
+      position: absolute;
+      right: 8px;
+      bottom: -17px;
+      color: rgba(158,234,98,.09);
+      font-size: 4.8rem;
+      font-weight: 900;
+    }
+
+    .accumulator-bank small { position: relative; color: #aeb8b4; font-size: .55rem; }
+    .accumulator-bank strong { position: relative; font-size: .75rem; }
+
+    .ledger-foot {
+      margin: 10px 0 0;
+      color: #aeb8b4;
+      font-size: .68rem;
+      line-height: 1.5;
+    }
+
+    .ledger-foot strong { color: var(--amber); }
+
+    .identity-panel h3 { margin-bottom: 12px; }
+
+    .identity-lede {
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: .92rem;
+      line-height: 1.7;
+    }
+
+    .why-sync {
+      margin: 24px 0 10px;
+      padding-top: 18px;
+      color: var(--cyan);
+      border-top: 1px solid var(--line);
+      font-family: var(--mono);
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .protection-map {
+      display: grid;
+      gap: 7px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .protection-map li {
+      display: grid;
+      grid-template-columns: minmax(92px, .72fr) minmax(0, 1.28fr);
+      gap: 12px;
+      align-items: start;
+      padding: 10px 11px;
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: 9px;
+      background: rgba(255,255,255,.022);
+      font-size: .79rem;
+      line-height: 1.45;
+    }
+
+    .protection-map code {
+      color: var(--green);
+      font-family: var(--mono);
+      font-size: .72rem;
+    }
+
+    .protection-map span { color: #b5c0bb; }
+
+    .identity-conclusion {
+      margin: 12px 0 0;
+      padding: 13px 14px;
+      color: #c8d0cc;
+      border-left: 3px solid var(--green);
+      background: rgba(158,234,98,.055);
+      font-size: .82rem;
+      line-height: 1.6;
+    }
+
+    .identity-conclusion strong { color: var(--green); }
+
+    .section-head {
+      max-width: 800px;
+      margin-bottom: 40px;
+    }
+
+    h2 {
+      margin-bottom: 18px;
+      font-size: clamp(2rem, 4.2vw, 4rem);
+      line-height: 1.05;
+      letter-spacing: -.052em;
+    }
+
+    h3 {
+      margin-bottom: 12px;
+      font-size: 1.25rem;
+      line-height: 1.25;
+      letter-spacing: -.025em;
+    }
+
+    .section-intro {
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .tile-rail-wrap {
+      position: relative;
+      padding: 28px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(16, 21, 24, .84);
+    }
+
+    .tile-rail-wrap::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(105deg, transparent 55%, rgba(158,234,98,.035));
+    }
+
+    .tile-rail {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .tile-rail::before {
+      content: "";
+      position: absolute;
+      left: 5%;
+      right: 5%;
+      top: 27px;
+      z-index: -1;
+      height: 2px;
+      background: linear-gradient(90deg, var(--cyan), var(--green), var(--amber));
+      opacity: .6;
+    }
+
+    .rail-scroll { min-width: 0; }
+
+    .rail-link {
+      display: grid;
+      justify-items: center;
+      gap: 12px;
+      padding: 0 5px 12px;
+      color: var(--muted);
+      text-align: center;
+      text-decoration: none;
+      font-size: .78rem;
+      line-height: 1.35;
+    }
+
+    .rail-dot {
+      display: grid;
+      place-items: center;
+      width: 54px;
+      height: 54px;
+      color: var(--text);
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      font-family: var(--mono);
+      font-weight: 800;
+      box-shadow: 0 8px 28px rgba(0,0,0,.25);
+      transition: transform .2s ease, border-color .2s ease, background .2s ease;
+    }
+
+    .rail-link:hover .rail-dot,
+    .rail-link:focus-visible .rail-dot,
+    .rail-link[aria-current="step"] .rail-dot {
+      color: #091007;
+      background: var(--green);
+      border-color: var(--green);
+      transform: translateY(-4px);
+    }
+
+    .rail-title { color: var(--text); font-weight: 700; }
+
+    .proof-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    .proof-card {
+      min-height: 210px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+
+    .proof-no {
+      display: inline-grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      margin-bottom: 30px;
+      color: var(--green);
+      border: 1px solid rgba(158,234,98,.35);
+      border-radius: 10px;
+      font-family: var(--mono);
+      font-size: .78rem;
+    }
+
+    .proof-card p { margin: 0; color: var(--muted); font-size: .93rem; }
+
+    .act {
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+    }
+
+    .act-label {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 32px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: .82rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .act-label::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--line);
+    }
+
+    .story-layout {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      gap: 30px;
+      align-items: start;
+    }
+
+    .story-scenes { min-width: 0; }
+
+    .tile-console {
+      position: sticky;
+      top: 92px;
+      padding: 20px;
+      border: 1px solid rgba(158,234,98,.24);
+      border-radius: var(--radius);
+      background: rgba(11,15,17,.94);
+      box-shadow: 0 24px 60px rgba(0,0,0,.32);
+      backdrop-filter: blur(16px);
+      min-width: 0;
+    }
+
+    .console-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .console-head span {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: .68rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .console-head strong {
+      color: var(--green);
+      font-family: var(--mono);
+      font-size: 1.05rem;
+    }
+
+    .journey-steps {
+      margin: 0 0 18px;
+      padding: 0;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      list-style: none;
+    }
+
+    .journey-steps a {
+      min-height: 44px;
+      padding: 7px 4px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      text-align: center;
+      text-decoration: none;
+      font-family: var(--mono);
+      font-size: .61rem;
+      line-height: 1.15;
+    }
+
+    .journey-steps a b {
+      display: block;
+      color: #cbd4d0;
+      font-size: .72rem;
+    }
+
+    .journey-steps a[aria-current="step"] {
+      color: #10170c;
+      background: var(--green);
+      border-color: var(--green);
+    }
+
+    .journey-steps a[aria-current="step"] b { color: #10170c; }
+
+    .tile-transition {
+      margin-bottom: 14px;
+      padding: 12px 13px;
+      color: #dfe6e2;
+      border-left: 3px solid var(--green);
+      background: rgba(158,234,98,.06);
+      font-size: .84rem;
+      line-height: 1.35;
+    }
+
+    .tile-state {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px;
+      margin: 0;
+      font-size: .76rem;
+    }
+
+    .state-field {
+      min-width: 0;
+      padding: 9px 10px;
+      border: 1px solid rgba(255,255,255,.055);
+      border-radius: 8px;
+      background: rgba(255,255,255,.022);
+    }
+
+    .state-field.wide { grid-column: 1 / -1; }
+
+    .tile-state dt {
+      margin-bottom: 3px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: .62rem;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .tile-state dd { min-width: 0; margin: 0; color: #d8dfdc; line-height: 1.4; }
+    .tile-state dd.gate { color: var(--amber); }
+
+    .proof-label {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+      font-family: var(--mono);
+    }
+
+    .proof-label strong {
+      color: #d8dfdc;
+      font-size: .68rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .proof-label span { color: #77817d; font-size: .6rem; }
+
+    .proof-meter {
+      margin-top: 9px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .proof-meter span {
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr);
+      gap: 2px 5px;
+      align-items: center;
+      padding: 8px;
+      color: var(--muted);
+      border: 1px solid transparent;
+      border-radius: 7px;
+      background: rgba(255,255,255,.035);
+      font-family: var(--mono);
+    }
+
+    .proof-meter b {
+      grid-row: 1 / span 2;
+      color: currentColor;
+      font-size: .72rem;
+    }
+
+    .proof-meter em {
+      color: #c7d0cc;
+      font-size: .58rem;
+      font-style: normal;
+    }
+
+    .proof-meter small {
+      color: currentColor;
+      font-size: .56rem;
+    }
+
+    .proof-meter span[data-state="done"] { color: var(--green); border-color: rgba(158,234,98,.12); background: rgba(158,234,98,.09); }
+    .proof-meter span[data-state="active"] { color: var(--amber); border-color: rgba(241,199,91,.12); background: rgba(241,199,91,.09); }
+    .proof-meter span[data-state="open"] { color: #788481; }
+
+    .proof-explain {
+      margin: 9px 0 0;
+      color: #aeb8b4;
+      font-size: .67rem;
+      line-height: 1.45;
+    }
+
+    .still-open {
+      margin: 12px 0 0;
+      padding-top: 12px;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+      font-size: .72rem;
+      line-height: 1.4;
+    }
+
+    .still-open::before { content: "edge note · "; color: var(--rose); font-family: var(--mono); }
+
+    .handoff-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 32px;
+    }
+
+    .handoff-card {
+      position: relative;
+      min-height: 100%;
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(145deg, rgba(21,28,32,.96), rgba(12,16,18,.96));
+      overflow: hidden;
+      transition: border-color .25s ease, box-shadow .25s ease;
+    }
+
+    .handoff-card.is-current {
+      border-color: rgba(158,234,98,.42);
+      box-shadow: 0 0 0 1px rgba(158,234,98,.08), 0 24px 60px rgba(0,0,0,.18);
+    }
+
+    .handoff-card::before {
+      content: attr(data-step);
+      position: absolute;
+      right: 18px;
+      top: -18px;
+      color: rgba(255,255,255,.035);
+      font-size: 8rem;
+      font-weight: 850;
+      line-height: 1;
+      letter-spacing: -.1em;
+    }
+
+    .handoff-tag {
+      display: inline-flex;
+      margin-bottom: 20px;
+      padding: 6px 9px;
+      color: var(--green);
+      border: 1px solid rgba(158,234,98,.24);
+      border-radius: 8px;
+      font-family: var(--mono);
+      font-size: .72rem;
+      letter-spacing: .06em;
+    }
+
+    .handoff-route {
+      position: relative;
+      z-index: 1;
+      margin-bottom: 14px;
+      color: var(--text);
+      font-size: clamp(1.32rem, 2.5vw, 1.8rem);
+      line-height: 1.18;
+      letter-spacing: -.035em;
+    }
+
+    .handoff-summary {
+      position: relative;
+      z-index: 1;
+      color: var(--muted);
+    }
+
+    .receipt {
+      margin: 22px 0;
+      padding: 15px 16px;
+      border-left: 3px solid var(--green);
+      background: rgba(158,234,98,.055);
+      font-size: .9rem;
+    }
+
+    .receipt code { color: var(--green); font-family: var(--mono); }
+
+    .contract {
+      display: grid;
+      grid-template-columns: 94px 1fr;
+      gap: 10px 14px;
+      margin: 0;
+      font-size: .88rem;
+    }
+
+    .contract dt {
+      color: #cbd4d0;
+      font-family: var(--mono);
+      font-size: .72rem;
+      text-transform: uppercase;
+    }
+
+    .contract dd { margin: 0; color: var(--muted); }
+
+    .trap {
+      margin-top: 22px;
+      padding-top: 16px;
+      color: #d9b5b5;
+      border-top: 1px solid var(--line);
+      font-size: .86rem;
+    }
+
+    .trap strong { color: var(--rose); }
+
+    .diagram {
+      margin: 26px 0 0;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: #0b0f11;
+      font-family: var(--mono);
+      font-size: .76rem;
+      overflow: hidden;
+    }
+
+    .diagram-head {
+      margin-bottom: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .diagram-head strong { color: #dce4e0; }
+    .diagram-head span { color: var(--muted); font-size: .7rem; }
+
+    .timeline {
+      --steps: 8;
+      min-width: 0;
+      display: grid;
+      gap: 5px;
+    }
+
+    .time-axis,
+    .lane-row {
+      display: grid;
+      grid-template-columns: 92px repeat(var(--steps), minmax(48px, 1fr));
+      gap: 4px;
+      align-items: stretch;
+    }
+
+    .time-axis {
+      color: #657176;
+      text-align: center;
+      font-size: .65rem;
+    }
+
+    .time-axis::before { content: "time →"; text-align: left; }
+
+    .lane-row { position: relative; min-height: 36px; }
+
+    .lane-name {
+      grid-column: 1;
+      grid-row: 1;
+      align-self: center;
+      color: var(--muted);
+      line-height: 1.2;
+    }
+
+    .lane-track {
+      grid-column: 2 / -1;
+      grid-row: 1;
+      min-height: 36px;
+      border-radius: 7px;
+      background:
+        repeating-linear-gradient(90deg, transparent 0, transparent calc(12.5% - 1px), rgba(255,255,255,.045) calc(12.5% - 1px), rgba(255,255,255,.045) 12.5%),
+        rgba(255,255,255,.018);
+    }
+
+    .timeline[style*="--steps: 10"] .lane-track {
+      background:
+        repeating-linear-gradient(90deg, transparent 0, transparent calc(10% - 1px), rgba(255,255,255,.045) calc(10% - 1px), rgba(255,255,255,.045) 10%),
+        rgba(255,255,255,.018);
+    }
+
+    .mark {
+      position: relative;
+      z-index: 1;
+      grid-row: 1;
+      min-width: 0;
+      padding: 7px 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 7px;
+      text-align: center;
+      line-height: 1.15;
+      overflow-wrap: anywhere;
+    }
+
+    .mark.work { color: var(--cyan); background: rgba(102,217,232,.14); }
+    .mark.data { color: var(--green); background: rgba(158,234,98,.14); }
+    .mark.wait {
+      color: var(--amber);
+      background: repeating-linear-gradient(135deg, rgba(241,199,91,.15) 0 5px, rgba(241,199,91,.055) 5px 10px);
+    }
+    .mark.own { color: var(--violet); background: rgba(184,162,255,.14); }
+    .mark.release { color: #081006; background: var(--green); font-weight: 800; }
+    .mark.danger { color: var(--rose); background: rgba(255,139,139,.13); }
+    .mark.neutral { color: #b7c0bc; background: rgba(255,255,255,.06); }
+
+    .diagram-legend {
+      margin-top: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      color: var(--muted);
+      font-size: .68rem;
+    }
+
+    .diagram-legend span::before {
+      content: "";
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      margin-right: 6px;
+      border-radius: 2px;
+      background: currentColor;
+    }
+
+    .legend-work { color: var(--cyan) !important; }
+    .legend-data { color: var(--green) !important; }
+    .legend-wait { color: var(--amber) !important; }
+    .legend-own { color: var(--violet) !important; }
+
+    .residency-compare {
+      min-width: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .residency-case {
+      padding: 14px;
+      border: 1px solid #263236;
+      border-radius: 11px;
+      background: rgba(255,255,255,.018);
+    }
+
+    .residency-case h4 {
+      margin: 0 0 12px;
+      color: #dce4e0;
+      font-size: .74rem;
+      font-weight: 700;
+    }
+
+    .sm-slots {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 5px;
+    }
+
+    .sm-slot {
+      min-height: 62px;
+      padding: 8px 5px;
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      gap: 4px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .sm-slot.ready { color: var(--green); background: rgba(158,234,98,.12); }
+    .sm-slot.waiting { color: var(--amber); background: repeating-linear-gradient(135deg, rgba(241,199,91,.14) 0 5px, rgba(241,199,91,.05) 5px 10px); }
+    .sm-slot small { color: inherit; opacity: .76; font-size: .62rem; }
+
+    .pending-queue {
+      margin-top: 10px;
+      padding: 8px 10px;
+      color: var(--muted);
+      border-radius: 7px;
+      background: rgba(255,255,255,.035);
+    }
+
+    .case-result {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: .68rem;
+    }
+
+    .case-result.good { color: var(--green); }
+    .case-result.bad { color: var(--rose); }
+
+    .callout {
+      margin: 28px 0;
+      padding: 22px 24px;
+      border: 1px solid rgba(241,199,91,.25);
+      border-radius: 15px;
+      background: rgba(241,199,91,.055);
+    }
+
+    .callout strong { color: var(--amber); }
+
+    .matrix-wrap {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    .matrix {
+      width: 100%;
+      table-layout: fixed;
+      border-collapse: collapse;
+      background: rgba(16,21,24,.9);
+      font-size: .88rem;
+    }
+
+    .matrix th,
+    .matrix td {
+      padding: 16px 18px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .matrix th {
+      position: sticky;
+      top: 68px;
+      color: var(--muted);
+      background: #12181b;
+      font-family: var(--mono);
+      font-size: .72rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .matrix tr:last-child td { border-bottom: 0; }
+    .matrix td:first-child { color: var(--text); font-weight: 760; }
+    .yes { color: var(--green); }
+    .no { color: var(--rose); }
+
+    .debugger {
+      display: grid;
+      grid-template-columns: minmax(230px, .72fr) minmax(0, 1.28fr);
+      gap: 22px;
+    }
+
+    .symptoms,
+    .diagnosis {
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+
+    .symptoms { display: grid; gap: 9px; align-content: start; }
+
+    .symptom-btn {
+      width: 100%;
+      padding: 13px 14px;
+      color: var(--muted);
+      text-align: left;
+      border: 1px solid transparent;
+      border-radius: 11px;
+      background: rgba(255,255,255,.025);
+      cursor: pointer;
+      transition: background .2s ease, color .2s ease, border-color .2s ease;
+    }
+
+    .symptom-btn:hover,
+    .symptom-btn:focus-visible,
+    .symptom-btn[aria-selected="true"] {
+      color: var(--text);
+      border-color: rgba(158,234,98,.28);
+      background: rgba(158,234,98,.075);
+    }
+
+    .diagnosis {
+      min-height: 360px;
+      display: grid;
+      align-content: start;
+    }
+
+    .diagnosis-label {
+      color: var(--green);
+      font-family: var(--mono);
+      font-size: .74rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .diagnosis h3 {
+      margin: 12px 0;
+      font-size: clamp(1.5rem, 3vw, 2.35rem);
+    }
+
+    .diagnosis p { color: var(--muted); }
+
+    .check-list {
+      margin: 12px 0 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 10px;
+    }
+
+    .check-list li {
+      position: relative;
+      padding-left: 24px;
+      color: #cad3cf;
+    }
+
+    .check-list li::before {
+      content: "↳";
+      position: absolute;
+      left: 0;
+      color: var(--green);
+    }
+
+    .generation-strip {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 1px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--line);
+    }
+
+    .generation {
+      min-height: 170px;
+      padding: 22px;
+      background: var(--panel);
+    }
+
+    .generation small {
+      display: block;
+      margin-bottom: 18px;
+      color: var(--green);
+      font-family: var(--mono);
+    }
+
+    .generation p { margin: 0; color: var(--muted); font-size: .86rem; }
+
+    .closing {
+      margin-bottom: 60px;
+      padding: clamp(30px, 6vw, 72px);
+      border: 1px solid rgba(158,234,98,.22);
+      border-radius: 28px;
+      background:
+        linear-gradient(135deg, rgba(158,234,98,.09), rgba(102,217,232,.03)),
+        var(--panel);
+    }
+
+    .question-stack {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px 26px;
+      margin: 28px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .question-stack li {
+      padding: 14px 0;
+      color: #d9dfdc;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .question-stack li::before {
+      content: "→ ";
+      color: var(--green);
+      font-family: var(--mono);
+    }
+
+    footer {
+      width: min(calc(100% - 32px), var(--max));
+      margin: 0 auto;
+      padding: 28px 0 48px;
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+      font-size: .82rem;
+    }
+
+    footer a { color: var(--green); text-underline-offset: 3px; }
+
+    :focus-visible {
+      outline: 2px solid var(--cyan);
+      outline-offset: 3px;
+    }
+
+    @media (max-width: 1200px) {
+      .story-layout { grid-template-columns: 1fr; }
+      .tile-console { position: relative; top: auto; }
+      .scenario-grid { grid-template-columns: 1fr; }
+      .journey-steps { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+      .tile-state { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .state-field.wide { grid-column: span 2; }
+      .state-field:not(.wide) { grid-column: span 2; }
+      .proof-meter { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 900px) {
+      .tile-rail { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 18px; }
+      .tile-rail::before { display: none; }
+      .journey-steps { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .tile-state { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .state-field.wide { grid-column: 1 / -1; }
+      .state-field:not(.wide) { grid-column: auto; }
+      .proof-meter { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .proof-grid { grid-template-columns: repeat(2, 1fr); }
+      .handoff-grid { grid-template-columns: 1fr; }
+      .generation-strip { grid-template-columns: 1fr 1fr; }
+      .debugger { grid-template-columns: 1fr; }
+      .diagnosis { min-height: auto; }
+    }
+
+    @media (max-width: 760px) {
+      .diagram { padding: 15px; }
+      .diagram-head { display: grid; gap: 4px; }
+      .timeline { gap: 12px; }
+      .time-axis { display: none; }
+      .lane-row {
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 82px minmax(0, 1fr);
+        gap: 5px 8px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid rgba(255,255,255,.055);
+      }
+      .lane-row:last-child { padding-bottom: 0; border-bottom: 0; }
+      .lane-name { grid-column: 1; grid-row: 1; align-self: start; padding-top: 7px; }
+      .lane-track { display: none; }
+      .mark {
+        grid-column: 2 !important;
+        grid-row: auto !important;
+        justify-content: flex-start;
+        min-height: 32px;
+        text-align: left;
+      }
+      .residency-compare { grid-template-columns: 1fr; }
+
+      .matrix-wrap { border: 0; overflow: visible; }
+      .matrix,
+      .matrix tbody,
+      .matrix tr,
+      .matrix td { display: block; width: 100%; }
+      .matrix { background: transparent; }
+      .matrix thead { display: none; }
+      .matrix tbody { display: grid; gap: 10px; }
+      .matrix tr {
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(16,21,24,.9);
+      }
+      .matrix td {
+        display: grid;
+        grid-template-columns: 92px minmax(0, 1fr);
+        gap: 10px;
+        padding: 7px 0;
+        border: 0;
+      }
+      .matrix td::before { color: #788481; font-family: var(--mono); font-size: .65rem; font-weight: 400; }
+      .matrix td:nth-child(1)::before { content: "机制"; }
+      .matrix td:nth-child(2)::before { content: "记录 / 放行"; }
+      .matrix td:nth-child(3)::before { content: "observer"; }
+      .matrix td:nth-child(4)::before { content: "不自动保证"; }
+    }
+
+    @media (max-width: 640px) {
+      .topnav a:not(:last-child) { display: none; }
+      section { margin: 80px 0; }
+      h1 { font-size: clamp(3rem, 16vw, 5rem); }
+      .hero { min-height: auto; }
+      .tensor-equation { grid-template-columns: 1fr; }
+      .equation-op { justify-self: center; line-height: .7; }
+      .tensor-matrix { height: 150px; }
+      .kernel-contract { grid-template-columns: 1fr; }
+      .kernel-contract code { white-space: normal; }
+      .accumulation-grid,
+      .contribution-stack { grid-template-columns: 1fr; }
+      .protection-map li { grid-template-columns: 1fr; gap: 4px; }
+      .tile-rail-wrap { padding: 18px; }
+      .tile-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .proof-grid,
+      .question-stack { grid-template-columns: 1fr; }
+      .proof-card { min-height: 0; }
+      .proof-no { margin-bottom: 18px; }
+      .handoff-card { padding: 22px; }
+      .contract { grid-template-columns: 80px 1fr; }
+      .generation-strip { grid-template-columns: 1fr; }
+      footer { flex-direction: column; }
+    }
+
+    @media print {
+      :root { --bg: #fff; --panel: #fff; --panel-2: #f4f5f2; --text: #111; --muted: #4d5551; --line: #d6d9d7; }
+      body { background: #fff; }
+      body::before, .progress, .topbar, .symptoms { display: none; }
+      main { width: 100%; }
+      section { margin: 42px 0; break-inside: avoid; }
+      .hero { min-height: auto; padding-top: 20px; }
+      .handoff-card, .proof-card, .diagram, .diagnosis { break-inside: avoid; box-shadow: none; }
+      .debugger { grid-template-columns: 1fr; }
+      .diagnosis { border-color: #aaa; }
+      .tile-console { position: static; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition-duration: .001ms !important; animation-duration: .001ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到正文</a>
+  <div class="progress" id="progress" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#top" aria-label="回到顶部">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>GPU · Handoff</span>
+      </a>
+      <nav class="topnav" aria-label="页面导航">
+        <a href="#scenario">场景</a>
+        <a href="#journey">交接链</a>
+        <a href="#proofs">四份证明</a>
+        <a href="#handoffs">八次交接</a>
+        <a href="#diagnose">诊断</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top">
+      <div>
+        <p class="eyebrow">NVIDIA GPU · software × hardware pipeline</p>
+        <h1>一块 <span class="accent">Tile</span><br>的八次交接</h1>
+        <p class="lede">从 CPU submission、grid admission 和 warp issue，到 TMA、mbarrier、Tensor pipeline、remote completion 与 storage reuse。同步不是一串 API，而是下一阶段获得“可以继续”的凭证。</p>
+      </div>
+      <div class="hero-meta" aria-label="主题标签">
+        <span class="pill">scoreboard ≠ barrier</span>
+        <span class="pill">completion ≠ visibility</span>
+        <span class="pill">full ≠ reusable</span>
+        <span class="pill">progress is a proof</span>
+      </div>
+      <div class="hero-thesis">
+        一个独立推进的 agent 把数据、完成状态或资源所有权交给另一个 agent；同步协议要证明后者现在能安全、可见、并且最终可前进地继续。
+      </div>
+    </section>
+
+    <section id="scenario">
+      <div class="section-head">
+        <p class="section-kicker">00 · Workload</p>
+        <h2>先定义这块 tile 从哪来、要去哪</h2>
+        <p class="section-intro">全文追踪一个 tiled GEMM 的输出工作单元 <strong>Tile T₀</strong>。它由 block 坐标定义，并接收沿 K 维展开的 R 对 A/B input tiles；绿色输出不是某一对输入的结果，而是整条 reduction 完成后的计算 lineage 终点。</p>
+      </div>
+
+      <div class="scenario-grid">
+        <article class="scenario-surface" aria-label="Tiled GEMM 中 Tile T₀ 的张量位置">
+          <div class="scenario-label"><strong>workload contract</strong><span>C_T₀ ← init(C_T₀) + Σᵣ Aᵣ × Bᵣ</span></div>
+          <div class="tensor-equation">
+            <div class="tensor-card tensor-a">
+              <div class="tensor-name"><span>A</span><span>M × K</span></div>
+              <div class="tensor-matrix">
+                <span class="tensor-axis y">M ↓</span><span class="tensor-axis x">K →</span>
+                <span class="tensor-window slice-pair pair-0"><b>A₀</b><small>BM × BK</small></span>
+                <span class="tensor-window slice-pair pair-1"><b>A₁</b><small>BM × BK</small></span>
+                <span class="slice-ellipsis" aria-hidden="true">…</span>
+                <span class="tensor-window slice-pair pair-r"><b>Aᵣ</b><small>BM × BK</small></span>
+              </div>
+            </div>
+            <span class="equation-op" aria-hidden="true"><b>×</b><small>相同 r 配对</small></span>
+            <div class="tensor-card tensor-b">
+              <div class="tensor-name"><span>B</span><span>K × N</span></div>
+              <div class="tensor-matrix">
+                <span class="tensor-axis y">K ↓</span><span class="tensor-axis x">N →</span>
+                <span class="tensor-window slice-pair pair-0"><b>B₀</b><small>BK × BN</small></span>
+                <span class="tensor-window slice-pair pair-1"><b>B₁</b><small>BK × BN</small></span>
+                <span class="slice-ellipsis" aria-hidden="true">⋮</span>
+                <span class="tensor-window slice-pair pair-r"><b>Bᵣ</b><small>BK × BN</small></span>
+              </div>
+            </div>
+            <span class="equation-op" aria-hidden="true"><b>Σᵣ</b><small>R 次 fan-in</small></span>
+            <div class="tensor-card tensor-c">
+              <div class="tensor-name"><span>C</span><span>M × N</span></div>
+              <div class="tensor-matrix">
+                <span class="tensor-axis y">M ↓</span><span class="tensor-axis x">N →</span>
+                <span class="tensor-window"><b>Tile T₀</b><small>all R slices · BM × BN</small></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="kernel-contract">
+            <code>tile_kernel(block_m, block_n)</code>
+            <p>一个 CTA 负责输出窗口 <code>C[m₀:m₀+BM, n₀:n₀+BN]</code>。令 <code>R = ceil(K/BK)</code>：它必须取得 R 对 Aᵣ / Bᵣ，并把每一对的 partial product 累加到同一个 T₀ accumulator。</p>
+          </div>
+          <div class="reduction-ledger" aria-label="多组 K 维输入 tile 汇入同一个 C Tile accumulator">
+            <div class="ledger-head"><strong>K-reduction fan-in</strong><span>R = ceil(K / BK)</span></div>
+            <div class="accumulation-grid">
+              <div class="contribution-stack">
+                <span class="contribution pair-0"><b>r = 0</b><small>ΔC₀ = A₀ × B₀</small></span>
+                <span class="contribution pair-1"><b>r = 1</b><small>ΔC₁ = A₁ × B₁</small></span>
+                <span class="contribution pair-r"><b>… r = R−1</b><small>ΔCᵣ = Aᵣ × Bᵣ</small></span>
+              </div>
+              <div class="accumulator-bank"><small>同一块 BM × BN register tile</small><strong>Acc_T₀ += ΔCᵣ</strong><small>循环 R 次后才能 store</small></div>
+            </div>
+            <p class="ledger-foot"><strong>关键：</strong>一对 Aᵣ / Bᵣ 只贡献一份 ΔCᵣ；它不是 C_T₀。只有所有 r 的 contribution 都累加完成，Acc_T₀ 才能 materialize 为 global-memory C_T₀。</p>
+          </div>
+        </article>
+
+        <aside class="identity-panel" aria-label="Tile T₀ 计算工单及各同步机制保护的对象">
+          <h3>T₀ 是一张计算工单，不是一块一路搬运的内存</h3>
+          <p class="identity-lede"><code>T₀ = (block_m, block_n)</code> 只表示“计算 C 的这一块输出”。开始时只有它依赖的 A/B tiles；计算中 shared memory 保存临时 K-slices，registers 保存部分和；K-loop 完成后，它才成为 C 中真实存在的 output tile。</p>
+
+          <p class="why-sync">为什么同步要强调这一点？</p>
+          <ul class="protection-map">
+            <li><code>CUDA event</code><span>确认产生 A/B inputs 的 upstream work 已完成，tile_kernel 可以消费。</span></li>
+            <li><code>Scoreboard</code><span>确认 load 的目标 register ready，dependent instruction 可以 issue。</span></li>
+            <li><code>Barrier / mbarrier</code><span>确认 shared 中当前 K-slice 已发布，或 async transaction 已完成。</span></li>
+            <li><code>Empty permit</code><span>确认 consumer 已用完 S0/S1，producer 才能覆盖复用。</span></li>
+            <li><code>Kernel event</code><span>确认最终 C_T₀ 已写完，downstream task 才能接手。</span></li>
+          </ul>
+
+          <p class="identity-conclusion"><strong>共同点不是同一段 bytes。</strong>这些 receipt 分别关闭不同对象上的依赖边；它们只是共同服务于“完成 T₀ 这张工单”。</p>
+        </aside>
+      </div>
+    </section>
+
+    <section id="journey">
+      <div class="section-head">
+        <p class="section-kicker">01 · Journey</p>
+        <h2>先看 tile 的完整旅程</h2>
+        <p class="section-intro">点击任意节点跳到对应交接。注意下面同时存在 work、data 和 ownership 三条链；时间上“看起来先后发生”不能代替它们。</p>
+      </div>
+
+      <div class="tile-rail-wrap">
+        <div class="rail-scroll">
+          <nav class="tile-rail" aria-label="Tile 的八次交接">
+            <a class="rail-link" href="#handoff-1"><span class="rail-dot">01</span><span><span class="rail-title">Submit</span><br>task edge</span></a>
+            <a class="rail-link" href="#handoff-2"><span class="rail-dot">02</span><span><span class="rail-title">Place</span><br>residency</span></a>
+            <a class="rail-link" href="#handoff-3"><span class="rail-dot">03</span><span><span class="rail-title">Ready</span><br>scoreboard</span></a>
+            <a class="rail-link" href="#handoff-4"><span class="rail-dot">04</span><span><span class="rail-title">Share</span><br>publication</span></a>
+            <a class="rail-link" href="#handoff-5"><span class="rail-dot">05</span><span><span class="rail-title">Async</span><br>mbarrier</span></a>
+            <a class="rail-link" href="#handoff-6"><span class="rail-dot">06</span><span><span class="rail-title">Reuse</span><br>ownership</span></a>
+            <a class="rail-link" href="#handoff-7"><span class="rail-dot">07</span><span><span class="rail-title">Retire</span><br>event</span></a>
+            <a class="rail-link" href="#handoff-8"><span class="rail-dot">08</span><span><span class="rail-title">Remote</span><br>delivery</span></a>
+          </nav>
+        </div>
+
+        <div class="diagram" aria-label="Work、data 与 ownership 三条链叠加图">
+          <div class="diagram-head"><strong>同一次交接，在三条链上推进的距离并不相同</strong><span>每列对应上方一个 handoff</span></div>
+          <div class="timeline" style="--steps: 8">
+            <div class="time-axis"><span>Submit</span><span>Place</span><span>Ready</span><span>Share</span><span>Async</span><span>Reuse</span><span>Retire</span><span>Remote</span></div>
+            <div class="lane-row"><span class="lane-name">Work chain</span><span class="lane-track"></span><span class="mark work" style="grid-column:2/span 1">task edge</span><span class="mark work" style="grid-column:3/span 1">resident</span><span class="mark work" style="grid-column:4/span 4">warp active / eligible / issued</span><span class="mark work" style="grid-column:8/span 2">downstream work</span></div>
+            <div class="lane-row"><span class="lane-name">Data chain</span><span class="lane-track"></span><span class="mark data" style="grid-column:2/span 1">input</span><span class="mark data" style="grid-column:4/span 1">register</span><span class="mark data" style="grid-column:5/span 3">shared + Tensor</span><span class="mark data" style="grid-column:8/span 1">output</span><span class="mark data" style="grid-column:9/span 1">remote</span></div>
+            <div class="lane-row"><span class="lane-name">Receipt</span><span class="lane-track"></span><span class="mark release" style="grid-column:2/span 1">event</span><span class="mark release" style="grid-column:3/span 1">slot</span><span class="mark release" style="grid-column:4/span 1">SB</span><span class="mark release" style="grid-column:5/span 1">bar</span><span class="mark release" style="grid-column:6/span 1">mbar</span><span class="mark release" style="grid-column:7/span 1">empty</span><span class="mark release" style="grid-column:8/span 1">event</span><span class="mark release" style="grid-column:9/span 1">signal</span></div>
+            <div class="lane-row"><span class="lane-name">Ownership</span><span class="lane-track"></span><span class="mark own" style="grid-column:2/span 2">input allocation</span><span class="mark own" style="grid-column:4/span 1">warp registers</span><span class="mark own" style="grid-column:5/span 3">shared stage generation k</span><span class="mark own" style="grid-column:8/span 1">output users</span><span class="mark wait" style="grid-column:9/span 1">remote open</span></div>
+          </div>
+          <div class="diagram-legend"><span class="legend-work">scheduler progress</span><span class="legend-data">payload location</span><span class="legend-own">current owner</span><span class="legend-wait">lifetime not closed</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="proofs">
+      <div class="section-head">
+        <p class="section-kicker">02 · Contract</p>
+        <h2>每次交接，都写四份证明</h2>
+        <p class="section-intro">P/C/V/O 不是按顺序推进的四个阶段，而是检查同一张 receipt 覆盖了哪些义务。Participants、scope、phase/generation 是证明参数；wait 时仍持有的 registers、shared memory、CTA slot 和 queue resource 决定协议是否高效、甚至是否能前进。</p>
+      </div>
+
+      <div class="proof-grid">
+        <article class="proof-card">
+          <span class="proof-no">P</span>
+          <h3>Progress</h3>
+          <p>Producer 与 required participants 最终能获得调度机会吗？等待者会不会占满 producer 需要的 residency resource？</p>
+        </article>
+        <article class="proof-card">
+          <span class="proof-no">C</span>
+          <h3>Completion</h3>
+          <p>Consumer 等到的究竟是 launch-ready、register-ready、transaction complete，还是 whole-grid complete？</p>
+        </article>
+        <article class="proof-card">
+          <span class="proof-no">V</span>
+          <h3>Visibility</h3>
+          <p>观察 completion 后，payload 是否按正确 memory order、thread scope 和 proxy contract 可见？</p>
+        </article>
+        <article class="proof-card">
+          <span class="proof-no">O</span>
+          <h3>Ownership</h3>
+          <p>Consumer 用完以前，storage 会不会被下一代 tile 覆盖、释放，或被另一个 API 重新取得？</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="handoffs">
+      <div class="section-head">
+        <p class="section-kicker">03 · Follow Tile T₀</p>
+        <h2>不要换主角：从头到尾只看 Tile T₀</h2>
+        <p class="section-intro">向下滚动时，左侧状态板持续追踪同一个逻辑工作单元 T₀。每一站只回答三件事：它当前由什么物理状态表示、谁拥有该状态、拿到哪张 receipt 才能进入下一站。</p>
+      </div>
+
+      <div class="story-layout">
+        <aside class="tile-console" aria-label="Tile T₀ 当前状态" aria-live="polite">
+          <div class="console-head"><span>persistent trace</span><strong>Tile T₀</strong></div>
+          <ol class="journey-steps" aria-label="Tile T₀ 的八个阶段">
+            <li><a href="#handoff-1" data-console-step="1"><b>01</b>Submit</a></li>
+            <li><a href="#handoff-2" data-console-step="2"><b>02</b>Place</a></li>
+            <li><a href="#handoff-3" data-console-step="3"><b>03</b>Ready</a></li>
+            <li><a href="#handoff-4" data-console-step="4"><b>04</b>Share</a></li>
+            <li><a href="#handoff-5" data-console-step="5"><b>05</b>Async</a></li>
+            <li><a href="#handoff-6" data-console-step="6"><b>06</b>Reuse</a></li>
+            <li><a href="#handoff-7" data-console-step="7"><b>07</b>Retire</a></li>
+            <li><a href="#handoff-8" data-console-step="8"><b>08</b>Remote</a></li>
+          </ol>
+          <div class="tile-transition" id="tile-transition">Upstream producer → tile_kernel</div>
+          <dl class="tile-state">
+            <div class="state-field wide"><dt>representation</dt><dd id="tile-location">A / B input regions；T₀ 尚未 materialize</dd></div>
+            <div class="state-field wide"><dt>work</dt><dd id="tile-work">tile_kernel waits in the stream DAG</dd></div>
+            <div class="state-field"><dt>owner</dt><dd id="tile-owner">Upstream task / allocation</dd></div>
+            <div class="state-field"><dt>gate</dt><dd class="gate" id="tile-gate">input_ready event</dd></div>
+          </dl>
+          <div class="proof-label"><strong>handoff proof</strong><span>四项不是先后阶段</span></div>
+          <div class="proof-meter" aria-label="当前交接的四项证明状态">
+            <span data-proof="P" data-state="done"><b>P</b><em>Progress</em><small data-proof-state>已证明</small></span>
+            <span data-proof="C" data-state="done"><b>C</b><em>Completion</em><small data-proof-state>已证明</small></span>
+            <span data-proof="V" data-state="done"><b>V</b><em>Visibility</em><small data-proof-state>已证明</small></span>
+            <span data-proof="O" data-state="open"><b>O</b><em>Ownership</em><small data-proof-state>未关闭</small></span>
+          </div>
+          <p class="proof-explain" id="tile-proof-explain">input_ready 已证明 upstream 完成并发布输入；但 allocation 仍要保留给 tile_kernel。</p>
+          <p class="still-open" id="tile-open">CTA 尚未 resident；buffer lifetime 仍然开放。</p>
+        </aside>
+
+        <div class="story-scenes">
+      <div class="act">
+        <div class="act-label">Act I · work 进入硬件</div>
+        <div class="handoff-grid">
+          <article class="handoff-card" id="handoff-1" data-step="01">
+            <span class="handoff-tag">SOFTWARE DAG</span>
+            <h3 class="handoff-route">CPU / upstream task<br>→ kernel task</h3>
+            <p class="handoff-summary">此时 T₀ 只是一条待执行的依赖链：A / B 的相关 input regions 已在 global memory，输出尚未 materialize。Kernel launch 只提交 work；直到 <code>input_ready</code> 把 upstream completion 交给 CUDA scheduler，负责 T₀ 的 <code>tile_kernel</code> 才能进入下一站。</p>
+            <div class="receipt">receipt · <code>stream order / event / graph edge</code></div>
+            <dl class="contract">
+              <dt>Progress</dt><dd>Dependency 对 CUDA scheduler 可见，不让 consumer kernel 在 device 上盲目 spin。</dd>
+              <dt>Complete</dt><dd>Event 对应 record 点之前的 stream work，而不是“host API 已返回”。</dd>
+              <dt>Visible</dt><dd>匹配的 CUDA ordering 允许 downstream task 消费 upstream result。</dd>
+              <dt>Ownership</dt><dd>Free/reuse 仍必须排在最后一个 downstream user 之后。</dd>
+            </dl>
+            <div class="diagram" aria-label="Stream event 流水图">
+              <div class="diagram-head"><strong>Host enqueue 与 device execution 是两条时间线</strong><span>共同时间轴；斜纹表示等待但不占 SM</span></div>
+              <div class="timeline" style="--steps: 8">
+                <div class="time-axis"><span>t0</span><span>t1</span><span>t2</span><span>t3</span><span>t4</span><span>t5</span><span>t6</span><span>t7</span></div>
+                <div class="lane-row"><span class="lane-name">CPU</span><span class="lane-track"></span><span class="mark work" style="grid-column:2/span 1">launch A</span><span class="mark work" style="grid-column:3/span 1">record</span><span class="mark work" style="grid-column:4/span 1">wait B</span><span class="mark neutral" style="grid-column:5/span 3">CPU 已继续</span></div>
+                <div class="lane-row"><span class="lane-name">stream A</span><span class="lane-track"></span><span class="mark data" style="grid-column:3/span 3">producer 执行</span><span class="mark release" style="grid-column:6/span 1">event</span></div>
+                <div class="lane-row"><span class="lane-name">stream B</span><span class="lane-track"></span><span class="mark wait" style="grid-column:3/span 3">dependency pending</span><span class="mark data" style="grid-column:6/span 3">consumer 执行</span></div>
+                <div class="lane-row"><span class="lane-name">payload</span><span class="lane-track"></span><span class="mark danger" style="grid-column:3/span 3">不可消费</span><span class="mark own" style="grid-column:6/span 3">由 consumer 使用</span></div>
+              </div>
+              <div class="diagram-legend"><span class="legend-work">host / work command</span><span class="legend-data">device execution</span><span class="legend-wait">scheduler-visible wait</span><span class="legend-own">payload ownership</span></div>
+            </div>
+            <p class="trap"><strong>别混用：</strong>host return ≠ grid started；event ≠ kernel 内 barrier。</p>
+          </article>
+
+          <article class="handoff-card" id="handoff-2" data-step="02">
+            <span class="handoff-tag">PLACEMENT</span>
+            <h3 class="handoff-route">Device scheduler<br>→ resident CTA / warp</h3>
+            <p class="handoff-summary"><code>input_ready</code> 已打开 software gate，但 T₀ 仍未产生。现在进入 SM 的只是负责它的 work context：等 registers、shared memory 与 CTA slot 可用，对应 CTA 才成为 resident。</p>
+            <div class="receipt">receipt · <code>placement / residency / eligible state</code></div>
+            <dl class="contract">
+              <dt>Progress</dt><dd>普通 blocks 必须允许任意顺序；resident consumers 不能占满 slots 等 pending producers。</dd>
+              <dt>Complete</dt><dd>Residency 只证明 context 在场，不证明任何 tile 数据已经 ready。</dd>
+              <dt>Visible</dt><dd>Placement 本身不建立 memory happens-before。</dd>
+              <dt>Ownership</dt><dd>Active warp 即使在 barrier 等待，仍持有 registers、shared memory 和 CTA residency。</dd>
+            </dl>
+            <div class="diagram" aria-label="Grid 到 warp issue 的流水图">
+              <div class="diagram-head"><strong>同样的 atomic wait，两种完全不同的 progress 结果</strong><span>每格代表一个 resident CTA slot</span></div>
+              <div class="residency-compare">
+                <div class="residency-case">
+                  <h4>Healthy · producer 已 resident</h4>
+                  <div class="sm-slots">
+                    <div class="sm-slot ready"><b>P0</b><small>eligible</small></div>
+                    <div class="sm-slot waiting"><b>C0</b><small>wait flag</small></div>
+                    <div class="sm-slot ready"><b>W1</b><small>eligible</small></div>
+                    <div class="sm-slot ready"><b>W2</b><small>eligible</small></div>
+                  </div>
+                  <div class="pending-queue">pending queue · P1, C1</div>
+                  <div class="case-result good">P0 可 issue → 发布 flag → C0 解除等待</div>
+                </div>
+                <div class="residency-case">
+                  <h4>Deadlock · consumers 占满 slots</h4>
+                  <div class="sm-slots">
+                    <div class="sm-slot waiting"><b>C0</b><small>wait flag</small></div>
+                    <div class="sm-slot waiting"><b>C1</b><small>wait flag</small></div>
+                    <div class="sm-slot waiting"><b>C2</b><small>wait flag</small></div>
+                    <div class="sm-slot waiting"><b>C3</b><small>wait flag</small></div>
+                  </div>
+                  <div class="pending-queue">pending queue · P0, P1 ← producers</div>
+                  <div class="case-result bad">0 eligible producer；scope/order 正确也无法前进</div>
+                </div>
+              </div>
+            </div>
+            <p class="trap"><strong>典型死锁：</strong>所有 resident slots 都是 polling consumers，而 producer blocks 仍 pending。</p>
+          </article>
+        </div>
+      </div>
+
+      <div class="act">
+        <div class="act-label">Act II · instruction 与 threads 交接数据</div>
+        <div class="handoff-grid">
+          <article class="handoff-card" id="handoff-3" data-step="03">
+            <span class="handoff-tag">WARP ISSUE</span>
+            <h3 class="handoff-route">Producer instruction<br>→ dependent instruction</h3>
+            <p class="handoff-summary">CTA 已 resident，producer warp 开始把 T₀ 所需的 Aᵣ / Bᵣ fragment 从 global memory 取到 registers。目标 register 尚未 ready 时，dependent instruction 所在 warp active，但 next instruction 不 eligible。</p>
+            <div class="receipt">receipt · <code>scoreboard dependency release</code></div>
+            <dl class="contract">
+              <dt>Progress</dt><dd>Scheduler 可选择其他 eligible warps，以 TLP/ILP 覆盖 producer latency。</dd>
+              <dt>Complete</dt><dd>目标 register ready，dependent instruction 可进入 issue 竞争。</dd>
+              <dt>Visible</dt><dd>只保护同一 instruction dependency；不发布给另一 warp。</dd>
+              <dt>Ownership</dt><dd>Warp 等结果期间仍 resident；store 还可能在 EXIT 后经历 drain。</dd>
+            </dl>
+            <div class="diagram" aria-label="Scoreboard 时序图">
+              <div class="diagram-head"><strong>Warp A 等 R8 时，scheduler 用 Warp B 填满 issue slots</strong><span>等待 latency 被 TLP 覆盖</span></div>
+              <div class="timeline" style="--steps: 8">
+                <div class="time-axis"><span>t0</span><span>t1</span><span>t2</span><span>t3</span><span>t4</span><span>t5</span><span>t6</span><span>t7</span></div>
+                <div class="lane-row"><span class="lane-name">issue slot</span><span class="lane-track"></span><span class="mark work" style="grid-column:2/span 1">A·LDG</span><span class="mark data" style="grid-column:3/span 1">B·I0</span><span class="mark data" style="grid-column:4/span 1">B·I1</span><span class="mark data" style="grid-column:5/span 1">B·I2</span><span class="mark release" style="grid-column:6/span 1">A·FFMA</span><span class="mark neutral" style="grid-column:7/span 2">other work</span></div>
+                <div class="lane-row"><span class="lane-name">Warp A</span><span class="lane-track"></span><span class="mark work" style="grid-column:2/span 1">LDG</span><span class="mark wait" style="grid-column:3/span 3">R8 pending · not eligible</span><span class="mark data" style="grid-column:6/span 1">FFMA</span></div>
+                <div class="lane-row"><span class="lane-name">Warp B</span><span class="lane-track"></span><span class="mark data" style="grid-column:3/span 3">independent instructions</span></div>
+                <div class="lane-row"><span class="lane-name">L1TEX/HBM</span><span class="lane-track"></span><span class="mark own" style="grid-column:3/span 3">memory transaction</span><span class="mark release" style="grid-column:6/span 1">R8 ready</span></div>
+              </div>
+              <div class="diagram-legend"><span class="legend-work">Warp A issue</span><span class="legend-data">Warp B useful work</span><span class="legend-wait">active but not eligible</span><span class="legend-own">memory path occupied</span></div>
+            </div>
+            <p class="trap"><strong>别误诊：</strong>long scoreboard 是 producer latency；增加 <code>__syncthreads()</code> 不会让内存更快。</p>
+          </article>
+
+          <article class="handoff-card" id="handoff-4" data-step="04">
+            <span class="handoff-tag">PUBLICATION</span>
+            <h3 class="handoff-route">Producer threads<br>→ shared-memory consumers</h3>
+            <p class="handoff-summary">Register ready 只让 producer instruction 继续。多个 producers 把 Aᵣ / Bᵣ fragments 组装进 shared stage 后，一个 warp 的 scoreboard 仍无法把它发布给其他 consumers；这里必须换成跨-thread receipt。</p>
+            <div class="receipt">receipt · <code>barrier phase / atomic state transition</code></div>
+            <dl class="contract">
+              <dt>Progress</dt><dd>所有 required participants 最终必须到达；scope 越大，residency premise 越强。</dd>
+              <dt>Complete</dt><dd>Barrier 证明 participants 到齐，不一定证明独立 async transaction 完成。</dd>
+              <dt>Visible</dt><dd>Barrier memory contract，或 consumer 读到匹配 release modification 的 acquire。</dd>
+              <dt>Ownership</dt><dd>本 phase 可以消费；stage 是否可覆盖还要 consumer 反向释放。</dd>
+            </dl>
+            <div class="diagram" aria-label="Shared tile publication 流水图">
+              <div class="diagram-head"><strong>Barrier 成本由最晚到达者决定</strong><span>早到 warp 保持 resident，但不再 eligible</span></div>
+              <div class="timeline" style="--steps: 8">
+                <div class="time-axis"><span>t0</span><span>t1</span><span>t2</span><span>t3</span><span>t4</span><span>t5</span><span>t6</span><span>t7</span></div>
+                <div class="lane-row"><span class="lane-name">Warp 0</span><span class="lane-track"></span><span class="mark work" style="grid-column:2/span 1">store</span><span class="mark wait" style="grid-column:3/span 3">arrived · wait 3</span><span class="mark data" style="grid-column:6/span 2">consume</span></div>
+                <div class="lane-row"><span class="lane-name">Warp 1</span><span class="lane-track"></span><span class="mark work" style="grid-column:2/span 2">store</span><span class="mark wait" style="grid-column:4/span 2">arrived · wait 2</span><span class="mark data" style="grid-column:6/span 2">consume</span></div>
+                <div class="lane-row"><span class="lane-name">Warp 2</span><span class="lane-track"></span><span class="mark own" style="grid-column:2/span 4">long producer path</span><span class="mark release" style="grid-column:6/span 1">last arrive</span><span class="mark data" style="grid-column:7/span 1">consume</span></div>
+                <div class="lane-row"><span class="lane-name">barrier k</span><span class="lane-track"></span><span class="mark danger" style="grid-column:3/span 3">pending arrivals: 2 → 1</span><span class="mark release" style="grid-column:6/span 1">phase complete</span></div>
+              </div>
+              <div class="diagram-legend"><span class="legend-work">shared writes</span><span class="legend-wait">resident wait / barrier tail</span><span class="legend-own">late producer path</span><span class="legend-data">post-barrier work</span></div>
+            </div>
+            <p class="trap"><strong>Fence 不是 signal：</strong>它排序当前 thread 的 memory effects，却没有 arrival count，也不会告诉 consumer 何时继续。</p>
+          </article>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>关键分界：</strong>scoreboard 保护 instruction dependency；barrier 管 participant phase；fence 管 memory ordering；signal 提供可观察的状态。一个真实协议可能组合它们，但不能因为都与“等待”有关就互换。
+      </div>
+
+      <div class="act">
+        <div class="act-label">Act III · tile 离开普通 register chain</div>
+        <div class="handoff-grid">
+          <article class="handoff-card" id="handoff-5" data-step="05">
+            <span class="handoff-tag">ASYNC PIPELINE</span>
+            <h3 class="handoff-route">Producer warp → async / Tensor engine<br>→ consumer warp</h3>
+            <p class="handoff-summary">在 async 版本中，producer 不再经普通 register chain 搬运 T₀ 的本轮 Aᵣ / Bᵣ，而是把搬运交给 TMA。mbarrier 同时结算 software arrivals 与这些 transaction bytes，归零后才把 shared stage 交给 Tensor consumers。</p>
+            <div class="receipt">receipt · <code>async group / mbarrier tx / wait_group</code></div>
+            <dl class="contract">
+              <dt>Progress</dt><dd>Wait 以前安排 independent work；所有 consumers 太早等待会让 eligible set 枯竭。</dd>
+              <dt>Complete</dt><dd>Arrival count 是 participants 的账；tx-count 是 async work 的账，不能混记。</dd>
+              <dt>Visible</dt><dd>Generic↔async/tensormap proxy handoff必须遵守对应 instruction contract。</dd>
+              <dt>Ownership</dt><dd>Full 表示 consumer 可以读，不表示 producer 已拿回 stage。</dd>
+            </dl>
+            <div class="diagram" aria-label="TMA 与 mbarrier 时序图">
+              <div class="diagram-head"><strong>mbarrier 同时结算 software arrival 与 transaction bytes</strong><span>phase 只在两本账都归零后翻转</span></div>
+              <div class="timeline" style="--steps: 8">
+                <div class="time-axis"><span>t0</span><span>t1</span><span>t2</span><span>t3</span><span>t4</span><span>t5</span><span>t6</span><span>t7</span></div>
+                <div class="lane-row"><span class="lane-name">Producer</span><span class="lane-track"></span><span class="mark work" style="grid-column:2/span 1">expect 4KB</span><span class="mark work" style="grid-column:3/span 1">issue TMA</span><span class="mark data" style="grid-column:4/span 3">independent work</span></div>
+                <div class="lane-row"><span class="lane-name">TMA engine</span><span class="lane-track"></span><span class="mark own" style="grid-column:4/span 3">global → shared · 4KB</span><span class="mark release" style="grid-column:7/span 1">complete_tx</span></div>
+                <div class="lane-row"><span class="lane-name">arrivals</span><span class="lane-track"></span><span class="mark wait" style="grid-column:2/span 1">1 pending</span><span class="mark release" style="grid-column:3/span 1">0</span><span class="mark neutral" style="grid-column:4/span 3">software 账已清</span></div>
+                <div class="lane-row"><span class="lane-name">tx bytes</span><span class="lane-track"></span><span class="mark danger" style="grid-column:2/span 5">4096 → 3072 → 2048 → 1024</span><span class="mark release" style="grid-column:7/span 1">0 · flip</span></div>
+                <div class="lane-row"><span class="lane-name">Consumer</span><span class="lane-track"></span><span class="mark wait" style="grid-column:4/span 3">wait phase k</span><span class="mark data" style="grid-column:7/span 2">WGMMA</span></div>
+                <div class="lane-row"><span class="lane-name">Stage S0</span><span class="lane-track"></span><span class="mark own" style="grid-column:4/span 3">Filling</span><span class="mark release" style="grid-column:7/span 1">Full</span><span class="mark data" style="grid-column:8/span 1">Consuming</span></div>
+              </div>
+              <div class="diagram-legend"><span class="legend-work">producer work</span><span class="legend-own">async engine / stage ownership</span><span class="legend-wait">consumer wait</span><span class="legend-data">consumer compute</span></div>
+            </div>
+            <p class="trap"><strong>别混用：</strong>CTA barrier ≠ TMA transaction completion；<code>wait_group</code> ≠ 其他 warps 已 rendezvous。</p>
+          </article>
+
+          <article class="handoff-card" id="handoff-6" data-step="06">
+            <span class="handoff-tag">OWNERSHIP LOOP</span>
+            <h3 class="handoff-route">Consumer<br>→ next-generation producer</h3>
+            <p class="handoff-summary">Reduction slice r 的 copy completion 只让 S0 进入 full。Consumer 把这一片累加进 T₀ 后，还要把 S0 的 empty/permit 交回 producer，S0 才能装入 slice r+2。</p>
+            <div class="receipt">receipt · <code>empty permit / phase / generation</code></div>
+            <dl class="contract">
+              <dt>Progress</dt><dd>Producer 等 empty、consumer 等 full，stage depth 决定双方能覆盖多少 latency。</dd>
+              <dt>Complete</dt><dd>Full 是 producer→consumer；empty 是 consumer→producer，两张 receipt 方向相反。</dd>
+              <dt>Visible</dt><dd>Consumer acquire full 后才能读；producer acquire empty 后才能写下一 generation。</dd>
+              <dt>Ownership</dt><dd>Token、parity 或 monotonic sequence 防止旧 completion 被新一轮误认。</dd>
+            </dl>
+            <div class="diagram" aria-label="双缓冲 stage ownership 状态图">
+              <div class="diagram-head"><strong>两个 stage 让 copy(k+1) 与 compute(k) 重叠</strong><span>S0 只有收到 empty(k) 才能装 tile k+2</span></div>
+              <div class="timeline" style="--steps: 10">
+                <div class="time-axis"><span>t0</span><span>t1</span><span>t2</span><span>t3</span><span>t4</span><span>t5</span><span>t6</span><span>t7</span><span>t8</span><span>t9</span></div>
+                <div class="lane-row"><span class="lane-name">Producer</span><span class="lane-track"></span><span class="mark work" style="grid-column:2/span 2">fill S0 · k</span><span class="mark work" style="grid-column:4/span 2">fill S1 · k+1</span><span class="mark wait" style="grid-column:6/span 2">wait empty S0</span><span class="mark work" style="grid-column:8/span 3">fill S0 · k+2</span></div>
+                <div class="lane-row"><span class="lane-name">Consumer</span><span class="lane-track"></span><span class="mark wait" style="grid-column:2/span 2">wait full</span><span class="mark data" style="grid-column:4/span 3">use S0 · k</span><span class="mark data" style="grid-column:7/span 4">use S1 · k+1</span></div>
+                <div class="lane-row"><span class="lane-name">Stage S0</span><span class="lane-track"></span><span class="mark own" style="grid-column:2/span 2">Filling k</span><span class="mark release" style="grid-column:4/span 1">Full</span><span class="mark data" style="grid-column:5/span 2">Consuming</span><span class="mark release" style="grid-column:7/span 1">Empty</span><span class="mark own" style="grid-column:8/span 3">Filling k+2</span></div>
+                <div class="lane-row"><span class="lane-name">Stage S1</span><span class="lane-track"></span><span class="mark neutral" style="grid-column:2/span 2">Empty</span><span class="mark own" style="grid-column:4/span 2">Filling k+1</span><span class="mark release" style="grid-column:6/span 1">Full</span><span class="mark data" style="grid-column:7/span 4">Consuming</span><span class="mark release" style="grid-column:11/span 1">Empty</span></div>
+              </div>
+              <div class="diagram-legend"><span class="legend-work">copy issue</span><span class="legend-data">compute consumes stage</span><span class="legend-wait">backpressure</span><span class="legend-own">stage generation</span></div>
+            </div>
+            <p class="trap"><strong>经典覆盖：</strong>producer 看到 full 已完成就重填 S0，但 consumer 仍在读取 S0。</p>
+          </article>
+        </div>
+      </div>
+
+      <div class="act">
+        <div class="act-label">Act IV · tile 离开 kernel 与 device</div>
+        <div class="handoff-grid">
+          <article class="handoff-card" id="handoff-7" data-step="07">
+            <span class="handoff-tag">RETIREMENT &amp; LIFETIME</span>
+            <h3 class="handoff-route">Kernel<br>→ downstream task / host</h3>
+            <p class="handoff-summary">所有 reduction slices 已汇入 accumulator，T₀ 终于 materialize 为 global output <code>C_T₀</code>。Warp EXIT 后 stores 仍可能 drain；只有 grid completion 才把结果交给 downstream stream 或 host，但 allocation 仍属于尚未结束的 consumers。</p>
+            <div class="receipt">receipt · <code>grid completion / event / host wait</code></div>
+            <dl class="contract">
+              <dt>Progress</dt><dd>Task edge 由 runtime 调度，不需要 downstream kernel 在 SM 内轮询。</dd>
+              <dt>Complete</dt><dd>Kernel/event completion 不等于 host launch return，也不等于 PDL launch-ready。</dd>
+              <dt>Visible</dt><dd>CUDA task ordering让 downstream work消费 output；CPU 仍需相应同步。</dd>
+              <dt>Ownership</dt><dd><code>freeAsync</code> 必须在最后一个 local/remote consumer 之后。</dd>
+            </dl>
+            <div class="diagram" aria-label="Kernel 到 allocator lifetime 流水图">
+              <div class="diagram-head"><strong>Output lifetime 由最后一个 consumer 决定，不由 tile_kernel 决定</strong><span>同一 DAG 上的 execution 与 allocation lifetime</span></div>
+              <div class="timeline" style="--steps: 10">
+                <div class="time-axis"><span>t0</span><span>t1</span><span>t2</span><span>t3</span><span>t4</span><span>t5</span><span>t6</span><span>t7</span><span>t8</span><span>t9</span></div>
+                <div class="lane-row"><span class="lane-name">stream A</span><span class="lane-track"></span><span class="mark work" style="grid-column:2/span 2">malloc + producer</span><span class="mark release" style="grid-column:4/span 1">input_ready</span></div>
+                <div class="lane-row"><span class="lane-name">compute stream</span><span class="lane-track"></span><span class="mark wait" style="grid-column:2/span 2">wait input</span><span class="mark data" style="grid-column:4/span 3">tile_kernel</span><span class="mark wait" style="grid-column:7/span 1">drain</span><span class="mark release" style="grid-column:8/span 1">tile_done</span></div>
+                <div class="lane-row"><span class="lane-name">stream B</span><span class="lane-track"></span><span class="mark wait" style="grid-column:4/span 4">wait tile_done</span><span class="mark data" style="grid-column:8/span 3">local consumer</span><span class="mark release" style="grid-column:11/span 1">B_done</span></div>
+                <div class="lane-row"><span class="lane-name">remote</span><span class="lane-track"></span><span class="mark wait" style="grid-column:7/span 1">wait tile</span><span class="mark own" style="grid-column:8/span 3">transfer / use</span><span class="mark release" style="grid-column:11/span 1">R_done</span></div>
+                <div class="lane-row"><span class="lane-name">output owner</span><span class="lane-track"></span><span class="mark own" style="grid-column:4/span 4">tile_kernel</span><span class="mark own" style="grid-column:8/span 3">local + remote users</span><span class="mark release" style="grid-column:11/span 1">free</span></div>
+              </div>
+              <div class="diagram-legend"><span class="legend-work">software work</span><span class="legend-data">kernel / consumer execution</span><span class="legend-wait">task dependency or drain</span><span class="legend-own">buffer ownership</span></div>
+            </div>
+            <p class="trap"><strong>别混用：</strong><code>__threadfence()</code> 不会通知 host，也不能代替 grid completion。</p>
+          </article>
+
+          <article class="handoff-card" id="handoff-8" data-step="08">
+            <span class="handoff-tag">REMOTE DELIVERY</span>
+            <h3 class="handoff-route">Local GPU<br>→ remote GPU / external API</h3>
+            <p class="handoff-summary">最后，T₀ 的 output <code>C_T₀</code> 离开 local GPU。它依次经历 posted、ordered、source-complete、destination-visible 与 notified；remote consumer 释放 ownership 后，这块 storage 的旅程才真正结束。</p>
+            <div class="receipt">receipt · <code>collective completion / quiet + signal / timeline</code></div>
+            <dl class="contract">
+              <dt>Progress</dt><dd>Communicator/team participants 与调用顺序一致；failure 不能变成永久等待。</dd>
+              <dt>Complete</dt><dd>NCCL host return 只是 enqueue；NVSHMEM fence 只有 ordering，quiet 才涉及 delivery completion。</dd>
+              <dt>Visible</dt><dd>Remote consumer 通过 API-specific delivery与 notification contract观察 payload。</dd>
+              <dt>Ownership</dt><dd>Remote 使用结束、external layout/state 转移完成后，buffer 才能复用。</dd>
+            </dl>
+            <div class="diagram" aria-label="Remote completion 流水图">
+              <div class="diagram-head"><strong>Source reuse、destination visibility、remote notification 是三个时钟</strong><span>不同 API 在不同位置签发 receipt</span></div>
+              <div class="timeline" style="--steps: 8">
+                <div class="time-axis"><span>t0</span><span>t1</span><span>t2</span><span>t3</span><span>t4</span><span>t5</span><span>t6</span><span>t7</span></div>
+                <div class="lane-row"><span class="lane-name">Local GPU</span><span class="lane-track"></span><span class="mark work" style="grid-column:2/span 1">post</span><span class="mark work" style="grid-column:3/span 2">ordered ops</span><span class="mark release" style="grid-column:5/span 1">source done</span></div>
+                <div class="lane-row"><span class="lane-name">Fabric</span><span class="lane-track"></span><span class="mark own" style="grid-column:3/span 3">in flight</span><span class="mark release" style="grid-column:6/span 1">delivered</span></div>
+                <div class="lane-row"><span class="lane-name">Remote GPU</span><span class="lane-track"></span><span class="mark danger" style="grid-column:2/span 4">payload not yet visible</span><span class="mark data" style="grid-column:6/span 1">visible</span><span class="mark release" style="grid-column:7/span 1">signal</span><span class="mark data" style="grid-column:8/span 1">use</span></div>
+                <div class="lane-row"><span class="lane-name">source buf</span><span class="lane-track"></span><span class="mark own" style="grid-column:2/span 3">owned by operation</span><span class="mark release" style="grid-column:5/span 1">reusable*</span></div>
+                <div class="lane-row"><span class="lane-name">dest buf</span><span class="lane-track"></span><span class="mark own" style="grid-column:6/span 2">owned by remote consumer</span><span class="mark wait" style="grid-column:8/span 1">not reusable</span></div>
+              </div>
+              <div class="diagram-legend"><span class="legend-work">local ordering</span><span class="legend-own">fabric / ownership</span><span class="legend-data">destination-visible work</span><span class="legend-wait">lifetime still open</span></div>
+            </div>
+            <p class="trap"><strong>别混用：</strong>fence ≠ quiet；quiet ≠ remote notification；notification ≠ consumer 已用完 storage。</p>
+          </article>
+        </div>
+      </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="matrix">
+      <div class="section-head">
+        <p class="section-kicker">04 · Receipt matrix</p>
+        <h2>这些机制不是同一类东西</h2>
+        <p class="section-intro">先看它记录什么状态、谁能观察，再看它没有保证什么。Fence 特别重要：它是 ordering component，不是一张独立 completion receipt。</p>
+      </div>
+
+      <div class="matrix-wrap" role="region" aria-label="同步机制对照表" tabindex="0">
+        <table class="matrix">
+          <thead>
+            <tr><th>机制</th><th>记录 / 放行什么</th><th>直接 observer</th><th>不自动保证</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Scoreboard</td><td>Operand / register result ready</td><td>Warp scheduler、dependent instruction</td><td class="no">跨 thread visibility</td></tr>
+            <tr><td>Barrier</td><td>Required participants 到达同一 phase</td><td>Warp / CTA / cluster / cooperative group</td><td class="no">任意 async transaction 完成</td></tr>
+            <tr><td>mbarrier</td><td>Phase + arrivals + transaction count</td><td>Participants 与 async engine</td><td class="no">Stage 已允许下一代覆盖</td></tr>
+            <tr><td>Fence</td><td>当前 thread 的 memory effects ordering</td><td>匹配 scope/proxy 的 memory participants</td><td class="no">Signal、arrival、completion</td></tr>
+            <tr><td>Release/acquire atomic</td><td>State transition + publication edge</td><td>Scope 覆盖的 threads</td><td class="no">Producer 一定获得调度</td></tr>
+            <tr><td>Semaphore</td><td>Permit / ownership / progress count</td><td>Acquire waiter</td><td class="no">任意 payload 自动可见</td></tr>
+            <tr><td>CUDA event</td><td>Record 点以前的 stream work completion</td><td>Wait stream 或 host</td><td class="no">Kernel 内 participant phase</td></tr>
+            <tr><td>Remote signal</td><td>对端 progress notification</td><td>PE / rank / external API</td><td class="no">所有 delivery 与 reuse 条件</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="diagnose">
+      <div class="section-head">
+        <p class="section-kicker">05 · Diagnose</p>
+        <h2>Tile 停在哪张 receipt 前？</h2>
+        <p class="section-intro">选择一个 profiler 或 correctness 症状。诊断不先猜 API，而是定位 work、data 或 ownership chain 的断点。</p>
+      </div>
+
+      <div class="debugger">
+        <div class="symptoms" role="tablist" aria-label="选择症状">
+          <button class="symptom-btn" type="button" role="tab" aria-selected="true" data-diagnosis="scoreboard">Long scoreboard 很高</button>
+          <button class="symptom-btn" type="button" role="tab" aria-selected="false" data-diagnosis="barrier">Barrier stall 很高</button>
+          <button class="symptom-btn" type="button" role="tab" aria-selected="false" data-diagnosis="overlap">Copy 与 compute 不重叠</button>
+          <button class="symptom-btn" type="button" role="tab" aria-selected="false" data-diagnosis="stale">偶发读到旧数据</button>
+          <button class="symptom-btn" type="button" role="tab" aria-selected="false" data-diagnosis="overwrite">上一块 tile 混进下一块</button>
+          <button class="symptom-btn" type="button" role="tab" aria-selected="false" data-diagnosis="hang">Kernel / collective 永久 hang</button>
+        </div>
+
+        <article class="diagnosis" id="diagnosis-panel" role="tabpanel" aria-live="polite">
+          <span class="diagnosis-label" id="diagnosis-label">Completion gate · scoreboard</span>
+          <h3 id="diagnosis-title">Producer result latency 正在暴露</h3>
+          <p id="diagnosis-body">Dependent instruction 在等 global/local/texture path 返回 register result。它首先是 instruction dependency，不是 participant synchronization。</p>
+          <ul class="check-list" id="diagnosis-list">
+            <li>检查 coalescing、cache locality 与 memory path。</li>
+            <li>用 independent arithmetic 增加 ILP。</li>
+            <li>确认是否有足够的其他 eligible warps 覆盖 latency。</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section id="generations">
+      <div class="section-head">
+        <p class="section-kicker">06 · Generations</p>
+        <h2>主线稳定，凭证实现会变化</h2>
+        <p class="section-intro">不要把一代 GPU 的指令路径推广成 NVIDIA GPU 的永恒实现。稳定的是四份证明；变化的是 agent、completion object、scope、proxy 与 lifetime rule。</p>
+      </div>
+      <div class="generation-strip">
+        <article class="generation"><small>Pascal &amp; earlier</small><h3>旧 lockstep 心智</h3><p>Legacy warp-synchronous 代码需要重新检查 participant 与 memory ordering。</p></article>
+        <article class="generation"><small>Volta / Turing</small><h3>Independent scheduling</h3><p>Sub-warp divergence 使 mask 与 logical participant set 必须显式。</p></article>
+        <article class="generation"><small>Ampere</small><h3>Async copy</h3><p><code>cp.async</code>、group wait 与 pipeline state 从普通 register chain 中拆出。</p></article>
+        <article class="generation"><small>Hopper</small><h3>TMA + mbarrier</h3><p>Cluster、DSM、tx-count、WGMMA、PDL 与 memory domains 扩展交接面。</p></article>
+        <article class="generation"><small>Blackwell generation</small><h3>Tensor Memory</h3><p><code>tcgen05</code>、CLC 与 specialized completion 增加新的 resource lifetime。</p></article>
+      </div>
+    </section>
+
+    <section class="closing" id="review">
+      <p class="section-kicker">Final model</p>
+      <h2>看到任何同步原语，先把 tile 放回流水</h2>
+      <p class="section-intro">最窄 scope、最小 participants、最精确 completion、最晚必要 wait。不要追求“最强同步”，要追求责任刚好匹配的交接。</p>
+      <ul class="question-stack">
+        <li>谁生产，谁消费？</li>
+        <li>Producer 一定能被调度吗？</li>
+        <li>等到的是哪一种 completion？</li>
+        <li>Scope、order、proxy 是否匹配？</li>
+        <li>Wait 时仍占着什么硬件资源？</li>
+        <li>谁把 ownership 交回下一代？</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <span>Single-page companion · NVIDIA GPU 软硬件流水与同步</span>
+    <a href="nvidia-gpu-synchronization.md">阅读完整文章 →</a>
+  </footer>
+
+  <script>
+    const diagnoses = {
+      scoreboard: {
+        label: "Completion gate · scoreboard",
+        title: "Producer result latency 正在暴露",
+        body: "Dependent instruction 在等 global/local/texture path 返回 register result。它首先是 instruction dependency，不是 participant synchronization。",
+        checks: ["检查 coalescing、cache locality 与 memory path。", "用 independent arithmetic 增加 ILP。", "确认是否有足够的其他 eligible warps 覆盖 latency。"]
+      },
+      barrier: {
+        label: "Participant gate · barrier",
+        title: "Warps 到达 phase boundary 的时间不平衡",
+        body: "早到 warps 仍占据 residency resource，却不能发射 barrier 后的 instruction。先找 late participant，而不是扩大 fence scope。",
+        checks: ["检查 divergent path 是否漏掉 required participant。", "比较各 warp 的 work amount 和 memory latency。", "确认 barrier scope 是否大于真正共享 state 的 group。"]
+      },
+      overlap: {
+        label: "Async gate · stage pipeline",
+        title: "Wait 太早、stage 太浅，或 engine 没有独立推进",
+        body: "Async 的价值来自 issue 后做 independent work，并在首次消费前才 wait。只换成 async API 而不重排 work，不会自动产生 overlap。",
+        checks: ["画出 full / empty stage timeline。", "把 wait 移到首次必要消费之前。", "检查 copy、shared 与 Tensor path 是否争用同一瓶颈资源。"]
+      },
+      stale: {
+        label: "Visibility gate · memory publication",
+        title: "Completion 被观察了，但 payload 没有正确发布",
+        body: "常见原因是缺少 release/acquire、scope 太窄，或 generic 与 async/tensormap proxy 之间缺少规定的 handoff。",
+        checks: ["确认 consumer 读到了对应 generation 的 atomic modification。", "核对双方 thread scope 是否互相覆盖。", "手写 PTX 时逐条检查 proxy fence 与 completion contract。"]
+      },
+      overwrite: {
+        label: "Ownership gate · phase / generation",
+        title: "Producer 把 full 错当成 reusable",
+        body: "Copy complete 只结束 producer→consumer 交接。Consumer 尚未返回 empty/permit 时，覆盖同一 stage 会混入下一代 tile。",
+        checks: ["为每个 slot 画 Empty→Filling→Full→Consuming 状态机。", "加入 consumer→producer 的反向 release。", "使用 token、parity 或 sequence 防止 ABA。"]
+      },
+      hang: {
+        label: "Progress gate · participants / residency",
+        title: "首先证明 producer 和所有 participants 能继续",
+        body: "即使 atomic order 与 scope 完全正确，resident waiters 占满资源、barrier participant mismatch 或 collective rank mismatch 仍会永久等待。",
+        checks: ["检查 ordinary grid 是否让 resident consumers 等 pending producers。", "核对 barrier mask/count 和 communicator 调用顺序。", "优先把 task dependency 暴露给 stream/event/graph scheduler。"]
+      }
+    };
+
+    const journeyStates = [
+      {
+        transition: "Upstream producer → tile_kernel",
+        location: "A / B input regions；T₀ 尚未 materialize",
+        work: "tile_kernel waits in the stream DAG",
+        owner: "Upstream task / allocation",
+        gate: "input_ready event",
+        proofSummary: "Event 覆盖 P/C/V；它不转移 allocation，O 仍未关闭。",
+        open: "CTA 尚未 resident；buffer lifetime 仍然开放。",
+        proofs: { P: "done", C: "done", V: "done", O: "open" }
+      },
+      {
+        transition: "Device scheduler → CTA / warps",
+        location: "A / B still global；T₀ work context resident",
+        work: "CTA resident；warps active",
+        owner: "tile_kernel allocation",
+        gate: "SM resource / placement",
+        proofSummary: "Placement 只覆盖 P；它不证明 operand complete/visible，也不结束资源 ownership。",
+        open: "Resident 不等于 tile data-ready；warp 尚未取得 operand。",
+        proofs: { P: "done", C: "open", V: "open", O: "open" }
+      },
+      {
+        transition: "Memory path → Warp A instruction",
+        location: "Aᵣ / Bᵣ · global → registers",
+        work: "LDG in flight；FFMA not eligible",
+        owner: "Warp A register dependency",
+        gate: "scoreboard · R8 ready",
+        proofSummary: "Scoreboard 正在结算 C；它只管本 warp 的 dependency，跨-thread 的 V/O 仍未覆盖。",
+        open: "这张 receipt 只覆盖本 warp；尚未发布给其他 threads。",
+        proofs: { P: "done", C: "active", V: "open", O: "open" }
+      },
+      {
+        transition: "Producer warps → shared consumers",
+        location: "Aᵣ / Bᵣ · shared stage · phase r",
+        work: "Producers arrive；consumers wait",
+        owner: "CTA participants",
+        gate: "barrier / release-acquire",
+        proofSummary: "Barrier 到齐并发布 shared writes 后覆盖 P/C/V；consumer 尚未归还 empty，所以 O 未关闭。",
+        open: "Tile 已可消费，但 shared stage 还没有返回 empty。",
+        proofs: { P: "done", C: "done", V: "done", O: "open" }
+      },
+      {
+        transition: "Producer → TMA → consumer warpgroup",
+        location: "Aᵣ / Bᵣ · global → shared S0",
+        work: "TMA 搬运；producer 做 independent work",
+        owner: "Async engine → consumer",
+        gate: "mbarrier arrivals + tx bytes",
+        proofSummary: "TMA transaction 正在结算 C/V；full 尚未签发，stage 的 O 仍在交接。",
+        open: "Phase completion 只签发 full；producer 仍未拿回 S0。",
+        proofs: { P: "done", C: "active", V: "active", O: "open" }
+      },
+      {
+        transition: "Consumer → next-generation producer",
+        location: "Shared stages S0 / S1",
+        work: "accumulate(r) ∥ fill(r+1)",
+        owner: "Consumer 正在归还 S0",
+        gate: "empty permit + generation",
+        proofSummary: "Full 所需的 P/C/V 已成立；empty permit 正在结算反向的 O，防止 S0 被提前覆盖。",
+        open: "必须用 token/parity 区分 S0 的不同世代。",
+        proofs: { P: "done", C: "done", V: "done", O: "active" }
+      },
+      {
+        transition: "tile_kernel → downstream consumers",
+        location: "Materialized C_T₀ · global output",
+        work: "Stores drain；grid retires",
+        owner: "Local + remote consumers",
+        gate: "tile_done event",
+        proofSummary: "Grid event 覆盖 P/C/V；local/remote consumers 尚未结束，O 仍在转移。",
+        open: "Kernel complete 仍不等于最后一个 user 已结束；不能 free。",
+        proofs: { P: "done", C: "done", V: "done", O: "active" }
+      },
+      {
+        transition: "Local GPU → remote consumer",
+        location: "C_T₀ · remote destination buffer",
+        work: "Fabric delivery → notify → use",
+        owner: "Remote GPU / external API",
+        gate: "quiet / signal / timeline",
+        proofSummary: "Delivery、notification 与 remote release 均已完成，P/C/V/O 全部关闭。",
+        open: "Remote release 关闭最后一条 lifetime edge，Tile T₀ 的 lineage 才真正结束。",
+        proofs: { P: "done", C: "done", V: "done", O: "done" }
+      }
+    ];
+
+    const progress = document.getElementById("progress");
+    const railLinks = [...document.querySelectorAll(".rail-link")];
+    const handoffCards = [...document.querySelectorAll(".handoff-card")];
+    const consoleLinks = [...document.querySelectorAll("[data-console-step]")];
+    const tileTransition = document.getElementById("tile-transition");
+    const tileLocation = document.getElementById("tile-location");
+    const tileWork = document.getElementById("tile-work");
+    const tileOwner = document.getElementById("tile-owner");
+    const tileGate = document.getElementById("tile-gate");
+    const tileProofExplain = document.getElementById("tile-proof-explain");
+    const tileOpen = document.getElementById("tile-open");
+    const proofElements = [...document.querySelectorAll("[data-proof]")];
+    const proofStateLabels = { done: "已证明", active: "结算中", open: "未覆盖" };
+
+    function setJourneyState(index) {
+      const state = journeyStates[index];
+      tileTransition.textContent = state.transition;
+      tileLocation.textContent = state.location;
+      tileWork.textContent = state.work;
+      tileOwner.textContent = state.owner;
+      tileGate.textContent = state.gate;
+      tileProofExplain.textContent = state.proofSummary;
+      tileOpen.textContent = state.open;
+      consoleLinks.forEach((link, linkIndex) => {
+        if (linkIndex === index) link.setAttribute("aria-current", "step");
+        else link.removeAttribute("aria-current");
+      });
+      proofElements.forEach((item) => {
+        const proof = item.dataset.proof;
+        const proofState = state.proofs[proof];
+        item.dataset.state = proofState;
+        item.querySelector("[data-proof-state]").textContent = proofStateLabels[proofState];
+      });
+      handoffCards.forEach((card, cardIndex) => card.classList.toggle("is-current", cardIndex === index));
+    }
+
+    function updateProgress() {
+      const root = document.documentElement;
+      const max = root.scrollHeight - root.clientHeight;
+      const value = max > 0 ? (root.scrollTop / max) * 100 : 0;
+      progress.style.width = `${value}%`;
+    }
+
+    window.addEventListener("scroll", updateProgress, { passive: true });
+    updateProgress();
+
+    if ("IntersectionObserver" in window) {
+      const stageObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          railLinks.forEach((link) => {
+            const active = link.getAttribute("href") === `#${entry.target.id}`;
+            if (active) link.setAttribute("aria-current", "step");
+            else link.removeAttribute("aria-current");
+          });
+          const index = handoffCards.indexOf(entry.target);
+          if (index >= 0) setJourneyState(index);
+        });
+      }, { rootMargin: "-35% 0px -50%", threshold: 0 });
+      handoffCards.forEach((card) => stageObserver.observe(card));
+    }
+
+    setJourneyState(0);
+
+    const symptomButtons = [...document.querySelectorAll(".symptom-btn")];
+    const diagnosisLabel = document.getElementById("diagnosis-label");
+    const diagnosisTitle = document.getElementById("diagnosis-title");
+    const diagnosisBody = document.getElementById("diagnosis-body");
+    const diagnosisList = document.getElementById("diagnosis-list");
+
+    symptomButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const data = diagnoses[button.dataset.diagnosis];
+        symptomButtons.forEach((item) => item.setAttribute("aria-selected", String(item === button)));
+        diagnosisLabel.textContent = data.label;
+        diagnosisTitle.textContent = data.title;
+        diagnosisBody.textContent = data.body;
+        diagnosisList.replaceChildren(...data.checks.map((text) => {
+          const item = document.createElement("li");
+          item.textContent = text;
+          return item;
+        }));
+      });
+    });
+  </script>
+</body>
+</html>

@@ -21,3 +21,4 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Do not classify notes with a single mixed taxonomy. The sidebar groups documents by role (orientation, architecture monograph, mechanism study, comparative/system study, experiment), while the topic matrix cross-indexes them by system layer and architecture family.
 - Every page must declare its product(s), document type, and technical topics in committed frontmatter. Product attribution must be explicit in navigation labels when a short title would otherwise be ambiguous.
 - Do not create a second content tree under `docs-site/`. Edit only the canonical Markdown and assets under `../docs/`.
+- Publishing order is mandatory: validate, commit, push the source branch, then deploy that pushed revision. Never deploy a local commit that has not been pushed first.

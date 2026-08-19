@@ -28,6 +28,22 @@ const diagramSources = files.filter((file) => file.endsWith(".mmd"));
 const diagramAssets = files.filter((file) => file.endsWith(".svg"));
 const duplicateParagraphs = new Map();
 const cjkPattern = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
+const canonicalLearningTracks = [
+  "Model Computation and Workload",
+  "Model-to-Hardware Mapping",
+  "Hardware Architecture",
+  "Software Optimization",
+  "Model–Hardware Co-design",
+  "Performance Modeling and Validation",
+];
+const canonicalOwnershipTitles = [
+  "Model Computation Primitives and Workload Description",
+  "Model-to-Hardware Mapping",
+  "AI Accelerator Architecture Comparison",
+  "Cross-Architecture Software Optimization",
+  "Model–Hardware Co-design",
+  "Performance Modeling and Validation",
+];
 const pairedLocalePaths = [
   "index.md",
   "curriculum.md",
@@ -39,6 +55,42 @@ const pairedLocalePaths = [
   "notes/model-hardware-codesign.md",
   "notes/performance-modeling.md",
 ];
+
+const chineseLocalePaths = markdownFiles
+  .filter((file) => !file.startsWith(path.join(docsRoot, "en") + path.sep))
+  .map((file) => path.relative(docsRoot, file));
+const englishLocalePaths = markdownFiles
+  .filter((file) => file.startsWith(path.join(docsRoot, "en") + path.sep))
+  .map((file) => path.relative(path.join(docsRoot, "en"), file));
+
+for (const relativePath of chineseLocalePaths) {
+  if (!englishLocalePaths.includes(relativePath)) errors.push(`Missing English route counterpart: docs/en/${relativePath}`);
+}
+for (const relativePath of englishLocalePaths) {
+  if (!chineseLocalePaths.includes(relativePath)) errors.push(`Missing Chinese route counterpart: docs/${relativePath}`);
+}
+
+for (const relativePath of ["index.md", "curriculum.md", "topics.md", "notes/learning-roadmap.md"]) {
+  const source = readFileSync(path.join(docsRoot, relativePath), "utf8");
+  for (const track of canonicalLearningTracks) {
+    if (!source.includes(track)) errors.push(`docs/${relativePath}: missing canonical learning track label ${track}`);
+  }
+}
+
+for (const localePrefix of ["", "en/"]) {
+  for (const relativePath of ["index.md", "curriculum.md", "topics.md"]) {
+    const source = readFileSync(path.join(docsRoot, localePrefix, relativePath), "utf8");
+    for (const title of canonicalOwnershipTitles) {
+      if (!source.includes(title)) errors.push(`docs/${localePrefix}${relativePath}: missing canonical ownership document title ${title}`);
+    }
+  }
+}
+
+const siteConfigSource = readFileSync(path.join(siteRoot, ".vitepress", "config.mjs"), "utf8");
+for (const track of canonicalLearningTracks) {
+  if (!siteConfigSource.includes(track)) errors.push(`VitePress navigation is missing canonical learning track label ${track}`);
+}
+if (siteConfigSource.includes("i18nRouting: false")) errors.push("VitePress locale switching must preserve paired routes");
 
 for (const relativePath of pairedLocalePaths) {
   const chinesePath = path.join(docsRoot, relativePath);

@@ -19,12 +19,12 @@ NVIDIA GPU, Groq LPU/TSP, Tenstorrent Tensix, and Google TPU are architecture ca
 
 | Track | Entry | Primary question |
 | --- | --- | --- |
-| Model Computation and Workload | [Computation Primitives and Workload](./notes/model-computation-primitives.md) | What computation, data, state, and Communication does the model create? |
-| Model-to-Hardware Mapping | [End-to-End Mapping](./notes/model-to-hardware-mapping.md) | How does an Operation become real device execution? |
+| Model Computation and Workload | [Model Computation Primitives and Workload Description](./notes/model-computation-primitives.md) | What computation, data, state, and Communication does the model create? |
+| Model-to-Hardware Mapping | [Model-to-Hardware Mapping](./notes/model-to-hardware-mapping.md) | How does an Operation become real device execution? |
 | Hardware Architecture | [AI Accelerator Architecture Comparison](./notes/ai-accelerator-architecture-comparison.md) | Where are resources located, and how is responsibility divided? |
-| Software Optimization | [Cross-Architecture Optimization](./notes/software-optimization-methodology.md) | How can Data Movement, waiting, and waste be reduced? |
-| Model–Hardware Co-design | [Co-design Framework](./notes/model-hardware-codesign.md) | When should a cross-layer contract change? |
-| Performance Modeling and Validation | [Performance Model and Experiment Contract](./notes/performance-modeling.md) | How can a claim be predicted, measured, and falsified? |
+| Software Optimization | [Cross-Architecture Software Optimization](./notes/software-optimization-methodology.md) | How can Data Movement, waiting, and waste be reduced? |
+| Model–Hardware Co-design | [Model–Hardware Co-design](./notes/model-hardware-codesign.md) | When should a cross-layer contract change? |
+| Performance Modeling and Validation | [Performance Modeling and Validation](./notes/performance-modeling.md) | How can a claim be predicted, measured, and falsified? |
 
 ## How to Read the Repository
 
@@ -34,4 +34,4 @@ NVIDIA GPU, Groq LPU/TSP, Tenstorrent Tensix, and Google TPU are architecture ca
 - Treat vendor monographs as case studies that instantiate the shared framework.
 - Write a prediction before running a lab or benchmark.
 
-The Chinese locale currently contains the complete vendor monographs and teaching labs. English translations are being added as committed Markdown; the site build never generates translations.
+The Chinese locale contains the complete vendor monographs and teaching labs. Every route has a committed English counterpart: completed translations contain the full article, while pending translations contain an explicit status page and a link to the Chinese source. The site build never generates or translates content.

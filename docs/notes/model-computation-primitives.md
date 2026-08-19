@@ -131,7 +131,7 @@ Norm
 
 - 输出给[模型到硬件映射](./model-to-hardware-mapping.md)：operation、shape、dependency 和 state；
 - 输出给[软件优化方法](./software-optimization-methodology.md)：baseline traffic、reuse opportunity 和 quality contract；
-- 输出给[模型—硬件协同设计](./model-hardware-codesign.md)：无法通过普通 mapping 消除的根本需求；
+- 输出给[Model–Hardware Co-design](./model-hardware-codesign.md)：无法通过普通 mapping 消除的根本需求；
 - 输出给[性能建模](./performance-modeling.md)：FLOPs、bytes、capacity 和 communication ledger；
 - 硬件差异由[四类架构统一对照](./ai-accelerator-architecture-comparison.md)负责解释。
 

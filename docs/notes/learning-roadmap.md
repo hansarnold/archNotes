@@ -21,12 +21,12 @@ topics: ["学习路径", "研究方法"]
 
 ## 六条主干的阅读顺序
 
-1. [模型计算原语与 Workload 描述](./model-computation-primitives.md)：把模型拆成 operation、tensor、状态和通信需求。
-2. [模型到硬件的完整映射](./model-to-hardware-mapping.md)：追踪图、IR、kernel、运行时和设备执行。
-3. [四类加速器统一对照](./ai-accelerator-architecture-comparison.md)：比较硬件资源、执行模型与软件契约。
-4. [跨架构软件优化方法](./software-optimization-methodology.md)：按瓶颈选择优化层和手段。
-5. [模型—硬件协同设计](./model-hardware-codesign.md)：判断何时需要修改模型、数值或硬件契约。
-6. [性能建模与验证](./performance-modeling.md)：用统一单位、预测和实验完成证据闭环。
+1. [Model Computation and Workload](./model-computation-primitives.md)：把模型拆成 operation、tensor、状态和通信需求。
+2. [Model-to-Hardware Mapping](./model-to-hardware-mapping.md)：追踪图、IR、kernel、运行时和设备执行。
+3. [Hardware Architecture](./ai-accelerator-architecture-comparison.md)：比较硬件资源、执行模型与软件契约。
+4. [Software Optimization](./software-optimization-methodology.md)：按瓶颈选择优化层和手段。
+5. [Model–Hardware Co-design](./model-hardware-codesign.md)：判断何时需要修改模型、数值或硬件契约。
+6. [Performance Modeling and Validation](./performance-modeling.md)：用统一单位、预测和实验完成证据闭环。
 
 **完成标志：** 能用同一个 Transformer block 贯穿六篇文档，并产出 workload、mapping、架构约束、优化、协同决策和性能验证六份相互引用的账本。
 

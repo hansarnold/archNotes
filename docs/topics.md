@@ -15,12 +15,12 @@ topics: ["模型计算", "全栈映射", "硬件架构", "软件优化", "协同
 
 | 主线 | 核心问题 | 当前入口 |
 | --- | --- | --- |
-| 模型计算与 Workload | 模型产生什么计算、数据、状态和通信？ | [计算原语与 Workload](./notes/model-computation-primitives.md) |
-| 模型到硬件的完整映射 | Operation 怎样逐层变成设备执行？ | [完整映射链](./notes/model-to-hardware-mapping.md)、[推理框架与运行时](./notes/inference-stack.md) |
-| 硬件架构 | 硬件提供什么资源，把什么责任交给软件？ | [四类加速器统一对照](./notes/ai-accelerator-architecture-comparison.md) |
-| 软件优化 | 怎样减少执行、数据移动、同步和空闲？ | [跨架构优化方法](./notes/software-optimization-methodology.md)、[Groq 优化案例](./notes/software-optimization.md) |
-| 模型—硬件协同设计 | 什么时候应该改变模型、数值或硬件契约？ | [协同设计框架](./notes/model-hardware-codesign.md)、[GPU + LPX 案例](./notes/nvidia-groq3-heterogeneous-inference.md) |
-| 性能建模与验证 | 怎样定量判断瓶颈并证伪结论？ | [性能模型与实验契约](./notes/performance-modeling.md)、三个现有实验 |
+| Model Computation and Workload | 模型产生什么计算、数据、状态和通信？ | [Model Computation Primitives and Workload Description](./notes/model-computation-primitives.md) |
+| Model-to-Hardware Mapping | Operation 怎样逐层变成设备执行？ | [Model-to-Hardware Mapping](./notes/model-to-hardware-mapping.md)、[推理框架与运行时](./notes/inference-stack.md) |
+| Hardware Architecture | 硬件提供什么资源，把什么责任交给软件？ | [AI Accelerator Architecture Comparison](./notes/ai-accelerator-architecture-comparison.md) |
+| Software Optimization | 怎样减少执行、数据移动、同步和空闲？ | [Cross-Architecture Software Optimization](./notes/software-optimization-methodology.md)、[Groq 优化案例](./notes/software-optimization.md) |
+| Model–Hardware Co-design | 什么时候应该改变模型、数值或硬件契约？ | [Model–Hardware Co-design](./notes/model-hardware-codesign.md)、[GPU + LPX 案例](./notes/nvidia-groq3-heterogeneous-inference.md) |
+| Performance Modeling and Validation | 怎样定量判断瓶颈并证伪结论？ | [Performance Modeling and Validation](./notes/performance-modeling.md)、三个现有实验 |
 
 ## 五个研究维度
 
@@ -40,12 +40,12 @@ topics: ["模型计算", "全栈映射", "硬件架构", "软件优化", "协同
 
 | 文档 | 计算组织 | 控制与调度 | 数据移动 | 软件栈 | 系统扩展 |
 | --- | :---: | :---: | :---: | :---: | :---: |
-| [模型计算原语与 Workload](./notes/model-computation-primitives.md) | ● | ○ | ● |  | ○ |
-| [模型到硬件的完整映射](./notes/model-to-hardware-mapping.md) | ○ | ● | ● | ● | ○ |
+| [Model Computation Primitives and Workload Description](./notes/model-computation-primitives.md) | ● | ○ | ● |  | ○ |
+| [Model-to-Hardware Mapping](./notes/model-to-hardware-mapping.md) | ○ | ● | ● | ● | ○ |
 | [四类加速器统一对照](./notes/ai-accelerator-architecture-comparison.md) | ● | ● | ● | ○ | ○ |
-| [跨架构软件优化方法](./notes/software-optimization-methodology.md) | ○ | ○ | ● | ● | ○ |
-| [模型—硬件协同设计](./notes/model-hardware-codesign.md) | ○ | ○ | ● | ● | ● |
-| [性能建模与验证](./notes/performance-modeling.md) | ○ | ○ | ● | ○ | ● |
+| [Cross-Architecture Software Optimization](./notes/software-optimization-methodology.md) | ○ | ○ | ● | ● | ○ |
+| [Model–Hardware Co-design](./notes/model-hardware-codesign.md) | ○ | ○ | ● | ● | ● |
+| [Performance Modeling and Validation](./notes/performance-modeling.md) | ○ | ○ | ● | ○ | ● |
 | [NVIDIA GPU：Tile 流水与同步](./notes/nvidia-gpu-synchronization.md) | ○ | ● | ● | ○ | ○ |
 | [Groq TSP：ISCA 架构导读](./notes/architecture.md) | ● | ● | ● | ○ | ○ |
 | [Tenstorrent：Tensix 与软件栈](./notes/tenstorrent-architecture.md) | ● | ● | ● | ● | ○ |

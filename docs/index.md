@@ -27,7 +27,7 @@ archNotes 研究 Model Computation 怎样经过 Compiler、Runtime 和 Kernel �
 
 ## 选择阅读方式
 
-- **按六条主线：** 从[课程蓝图](./curriculum.md)进入模型计算、全栈映射、硬件架构、软件优化、协同设计和性能验证。
+- **按六条主线：** 从[课程蓝图](./curriculum.md)进入 Model Computation and Workload、Model-to-Hardware Mapping、Hardware Architecture、Software Optimization、Model–Hardware Co-design 和 Performance Modeling and Validation。
 - **按学习顺序：** 从[学习路线](./notes/learning-roadmap.md)开始，逐步进入架构、机制、软件栈和系统扩展。
 - **按架构对象：** 在“架构专论”中分别阅读 NVIDIA GPU、Groq TSP、Tenstorrent Tensix 和 Google TPU。
 - **按技术问题：** 使用[主题矩阵](./topics.md)，横向查找计算组织、调度、数据移动、软件栈或系统扩展。
@@ -38,12 +38,12 @@ archNotes 研究 Model Computation 怎样经过 Compiler、Runtime 和 Kernel �
 
 | 主线 | 入口 | 首要问题 |
 | --- | --- | --- |
-| Model Computation and Workload | [Computation Primitives and Workload](./notes/model-computation-primitives.md) | 模型产生了哪些 Operation、数据、状态和 Communication？ |
-| Model-to-Hardware Mapping | [End-to-End Mapping](./notes/model-to-hardware-mapping.md) | Operation 怎样变成真实的硬件执行？ |
+| Model Computation and Workload | [Model Computation Primitives and Workload Description](./notes/model-computation-primitives.md) | 模型产生了哪些 Operation、数据、状态和 Communication？ |
+| Model-to-Hardware Mapping | [Model-to-Hardware Mapping](./notes/model-to-hardware-mapping.md) | Operation 怎样变成真实的硬件执行？ |
 | Hardware Architecture | [AI Accelerator Architecture Comparison](./notes/ai-accelerator-architecture-comparison.md) | 资源在哪里，Ownership 怎样划分？ |
 | Software Optimization | [Cross-Architecture Software Optimization](./notes/software-optimization-methodology.md) | 怎样减少 Data Movement、等待和无效工作？ |
 | Model–Hardware Co-design | [Model–Hardware Co-design](./notes/model-hardware-codesign.md) | 何时需要改变 Cross-layer Contract？ |
-| Performance Modeling and Validation | [Performance Modeling and Experiment Contract](./notes/performance-modeling.md) | 怎样预测、测量并证伪结论？ |
+| Performance Modeling and Validation | [Performance Modeling and Validation](./notes/performance-modeling.md) | 怎样预测、测量并证伪结论？ |
 
 ## 四种 Execution Model
 

@@ -20,7 +20,7 @@ topics:
 - 不按厂商罗列 API、环境变量和局部调参技巧。
 - 不在没有基线与瓶颈证据时直接给出优化方案。
 - 不用单个 kernel 的峰值替代端到端收益。
-- 不把模型结构或硬件契约的重大变化伪装成普通软件优化；这类问题归入[模型—硬件协同设计](./model-hardware-codesign.md)。
+- 不把模型结构或硬件契约的重大变化伪装成普通软件优化；这类问题归入[Model–Hardware Co-design](./model-hardware-codesign.md)。
 
 ## 固定优化循环
 
@@ -93,10 +93,10 @@ topics:
 
 ## 与其他主线的接口
 
-- [模型计算原语与 Workload 描述](./model-computation-primitives.md)定义被优化对象。
-- [模型到硬件的完整映射](./model-to-hardware-mapping.md)指出决策与成本出现在哪一层。
-- [性能建模与验证](./performance-modeling.md)负责预测、测量和反证。
-- [模型—硬件协同设计](./model-hardware-codesign.md)接管需要改变跨层契约的问题。
+- [Model Computation Primitives and Workload Description](./model-computation-primitives.md)定义被优化对象。
+- [Model-to-Hardware Mapping](./model-to-hardware-mapping.md)指出决策与成本出现在哪一层。
+- [Performance Modeling and Validation](./performance-modeling.md)负责预测、测量和反证。
+- [Model–Hardware Co-design](./model-hardware-codesign.md)接管需要改变跨层契约的问题。
 
 ## 后续展开顺序
 

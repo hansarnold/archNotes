@@ -125,10 +125,10 @@ Working Set <= Available Capacity × Safety Factor
 
 ## 与其他主线的接口
 
-- [模型计算原语与 Workload 描述](./model-computation-primitives.md)提供 operations、bytes、状态和通信的原始账本。
-- [模型到硬件的完整映射](./model-to-hardware-mapping.md)提供真实层级、执行顺序和可观察产物。
-- [跨架构软件优化方法](./software-optimization-methodology.md)用模型选择优化并验收结果。
-- [模型—硬件协同设计](./model-hardware-codesign.md)用模型量化跨层变化的收益和代价。
+- [Model Computation Primitives and Workload Description](./model-computation-primitives.md)提供 operations、bytes、状态和通信的原始账本。
+- [Model-to-Hardware Mapping](./model-to-hardware-mapping.md)提供真实层级、执行顺序和可观察产物。
+- [Cross-Architecture Software Optimization](./software-optimization-methodology.md)用模型选择优化并验收结果。
+- [Model–Hardware Co-design](./model-hardware-codesign.md)用模型量化跨层变化的收益和代价。
 
 ## 后续展开顺序
 

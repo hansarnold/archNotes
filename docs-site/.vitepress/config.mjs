@@ -15,19 +15,23 @@ const pageTitle = (relativePath) => {
 
 const item = (relativePath, title) => ({ text: title || pageTitle(relativePath), link: `/${relativePath}` });
 
+const learningTracks = [
+  ["notes/model-computation-primitives", "Model Computation and Workload"],
+  ["notes/model-to-hardware-mapping", "Model-to-Hardware Mapping"],
+  ["notes/ai-accelerator-architecture-comparison", "Hardware Architecture"],
+  ["notes/software-optimization-methodology", "Software Optimization"],
+  ["notes/model-hardware-codesign", "Model–Hardware Co-design"],
+  ["notes/performance-modeling", "Performance Modeling and Validation"],
+];
+
+const learningTrackItems = (prefix = "") => learningTracks.map(([relativePath, title]) => item(`${prefix}${relativePath}`, title));
+
 const overviewSidebar = [
   { text: "开始", items: [item("", "总览"), item("curriculum", "课程蓝图"), item("topics", "主题矩阵"), item("notes/learning-roadmap", "学习路线")] },
   {
     text: "全栈主干",
     collapsed: false,
-    items: [
-      item("notes/model-computation-primitives", "Model Computation and Workload"),
-      item("notes/model-to-hardware-mapping", "Model-to-Hardware Mapping"),
-      item("notes/ai-accelerator-architecture-comparison", "Hardware Architecture"),
-      item("notes/software-optimization-methodology", "Software Optimization"),
-      item("notes/model-hardware-codesign", "Model–Hardware Co-design"),
-      item("notes/performance-modeling", "Performance Modeling and Validation"),
-    ],
+    items: learningTrackItems(),
   },
   {
     text: "架构专论",
@@ -76,7 +80,7 @@ const nvidiaSidebar = [
 const groqSidebar = [
   { text: "Groq TSP", items: [item("notes/architecture", "架构概览")] },
   { text: "指令与调度", items: [item("notes/instruction-flow", "ISA 与指令流"), item("notes/compiler", "静态编译与调度")] },
-  { text: "Software Optimization", items: [item("notes/software-optimization", "Optimization Method"), item("notes/inference-stack", "Inference Framework and Runtime")] },
+  { text: "软件与 Runtime", items: [item("notes/software-optimization", "优化方法"), item("notes/inference-stack", "推理框架与 Runtime")] },
   { text: "比较与系统", items: [item("notes/lpu-vs-gpu", "LPU/TSP 与 GPU"), item("notes/groq-tenstorrent-comparison", "Groq、Tensix 与 GPU"), item("notes/nvidia-groq3-heterogeneous-inference", "GPU + LPX 异构推理")] },
   { text: "实验", items: [item("labs/static_scheduler", "静态时空调度")] },
   { text: "参考", items: [item("glossary", "Glossary"), item("sources/catalog", "Source Catalog")] },
@@ -99,19 +103,61 @@ const tpuSidebar = [
 const englishSidebar = [
   {
     text: "Start",
-    items: [item("en", "Overview"), item("en/curriculum", "Curriculum"), item("en/glossary", "Glossary")],
+    items: [
+      item("en", "Overview"),
+      item("en/curriculum", "Curriculum"),
+      item("en/topics", "Topic Matrix"),
+      item("en/notes/learning-roadmap", "Learning Roadmap"),
+    ],
   },
   {
     text: "Full-Stack Backbone",
     collapsed: false,
+    items: learningTrackItems("en/"),
+  },
+  {
+    text: "Architecture Monographs",
+    collapsed: false,
     items: [
-      item("en/notes/model-computation-primitives", "Model Computation and Workload"),
-      item("en/notes/model-to-hardware-mapping", "Model-to-Hardware Mapping"),
-      item("en/notes/ai-accelerator-architecture-comparison", "Hardware Architecture"),
-      item("en/notes/software-optimization-methodology", "Software Optimization"),
-      item("en/notes/model-hardware-codesign", "Model–Hardware Co-design"),
-      item("en/notes/performance-modeling", "Performance Modeling and Validation"),
+      item("en/notes/nvidia-gpu-synchronization", "NVIDIA GPU"),
+      item("en/notes/architecture", "Groq TSP"),
+      item("en/notes/tenstorrent-architecture", "Tenstorrent Tensix"),
+      item("en/notes/google-tpu-architecture", "Google TPU"),
     ],
+  },
+  {
+    text: "Comparisons and Systems",
+    collapsed: true,
+    items: [
+      item("en/notes/ai-accelerator-architecture-comparison", "Architecture Comparison"),
+      item("en/notes/lpu-vs-gpu", "LPU/TSP and GPU"),
+      item("en/notes/groq-tenstorrent-comparison", "Groq, Tensix, and GPU"),
+      item("en/notes/tenstorrent-rethinking-gpu-sm", "From GPU SM to Tensix"),
+      item("en/notes/nvidia-groq3-heterogeneous-inference", "GPU + LPX Heterogeneous Inference"),
+    ],
+  },
+  {
+    text: "Software and Runtime",
+    collapsed: true,
+    items: [
+      item("en/notes/instruction-flow", "ISA and Instruction Flow"),
+      item("en/notes/compiler", "Static Compilation and Scheduling"),
+      item("en/notes/software-optimization", "Groq Optimization Methods"),
+      item("en/notes/inference-stack", "Inference Framework and Runtime"),
+    ],
+  },
+  {
+    text: "Labs",
+    collapsed: true,
+    items: [
+      item("en/labs/static_scheduler", "Static Time-Space Scheduling"),
+      item("en/labs/tensix_pipeline", "Tensix Pipeline and Backpressure"),
+      item("en/labs/systolic_array", "Systolic Array Wavefront"),
+    ],
+  },
+  {
+    text: "Reference",
+    items: [item("en/glossary", "Glossary"), item("en/sources/catalog", "Source Catalog")],
   },
 ];
 
@@ -161,6 +207,7 @@ const rootLocaleThemeConfig = {
     text: "在 GitHub 上编辑此页",
   },
   darkModeSwitchLabel: "外观",
+  langMenuLabel: "切换语言",
   sidebarMenuLabel: "文档导航",
   returnToTopLabel: "返回顶部",
 };
@@ -181,6 +228,7 @@ const englishLocaleThemeConfig = {
     text: "Edit this page on GitHub",
   },
   darkModeSwitchLabel: "Appearance",
+  langMenuLabel: "Change language",
   sidebarMenuLabel: "Documentation navigation",
   returnToTopLabel: "Return to top",
 };
@@ -226,7 +274,7 @@ export default defineConfig({
         },
         {
           find: "vue",
-          replacement: path.join(siteRoot, "node_modules", "vue", "index.mjs"),
+          replacement: path.join(siteRoot, "node_modules", "vue", "dist", "vue.runtime.esm-bundler.js"),
         },
       ],
     },
@@ -238,7 +286,7 @@ export default defineConfig({
   themeConfig: {
     siteTitle: "archNotes",
     logo: false,
-    i18nRouting: false,
+    i18nRouting: true,
     search: {
       provider: "local",
       options: {

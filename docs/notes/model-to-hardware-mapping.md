@@ -17,10 +17,10 @@ topics:
 
 ## 非目标
 
-- 不在这里复述模型计算量，计算语义由[模型计算原语与 Workload 描述](./model-computation-primitives.md)负责。
+- 不在这里复述模型计算量，计算语义由[Model Computation Primitives and Workload Description](./model-computation-primitives.md)负责。
 - 不试图覆盖每家厂商的全部编译器实现。
 - 不把“编译器会自动优化”当作结论；每个关键决策都要能指出所属层级和可观察产物。
-- 不在这里评价优化收益，收益归入[性能建模与验证](./performance-modeling.md)。
+- 不在这里评价优化收益，收益归入[Performance Modeling and Validation](./performance-modeling.md)。
 
 ## 完整执行链
 
@@ -85,10 +85,10 @@ topics:
 
 ## 与其他主线的接口
 
-- 上游：[模型计算原语与 Workload 描述](./model-computation-primitives.md)提供算子、tensor、状态和通信需求。
-- 方法：[跨架构软件优化方法](./software-optimization-methodology.md)选择在哪一层改变当前映射。
-- 反向设计：[模型—硬件协同设计](./model-hardware-codesign.md)判断何时需要改变模型或硬件契约。
-- 证据闭环：[性能建模与验证](./performance-modeling.md)检验映射是否实现预期收益。
+- 上游：[Model Computation Primitives and Workload Description](./model-computation-primitives.md)提供算子、tensor、状态和通信需求。
+- 方法：[Cross-Architecture Software Optimization](./software-optimization-methodology.md)选择在哪一层改变当前映射。
+- 反向设计：[Model–Hardware Co-design](./model-hardware-codesign.md)判断何时需要改变模型或硬件契约。
+- 证据闭环：[Performance Modeling and Validation](./performance-modeling.md)检验映射是否实现预期收益。
 
 ## 后续展开顺序
 

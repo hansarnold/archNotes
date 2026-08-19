@@ -42,7 +42,7 @@ For a MatMul, Attention layer, MoE layer, or Transformer block, a reader should 
 
 | Track | Unique responsibility | Ownership document |
 | --- | --- | --- |
-| Model Computation and Workload | Describe what the model requires before choosing an implementation. | [Computation Primitives and Workload](./notes/model-computation-primitives.md) |
+| Model Computation and Workload | Describe what the model requires before choosing an implementation. | [Model Computation Primitives and Workload Description](./notes/model-computation-primitives.md) |
 | Model-to-Hardware Mapping | Connect every lowering and execution layer without hiding decisions behind “the Compiler.” | [Model-to-Hardware Mapping](./notes/model-to-hardware-mapping.md) |
 | Hardware Architecture | Compare resources, Execution Models, and software contracts with one coordinate system. | [AI Accelerator Architecture Comparison](./notes/ai-accelerator-architecture-comparison.md) |
 | Software Optimization | Select an Optimization from measured Bottleneck evidence. | [Cross-Architecture Software Optimization](./notes/software-optimization-methodology.md) |

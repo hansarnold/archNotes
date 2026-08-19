@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,6 +22,10 @@ const pages = [
     file: "dist/client/en/notes/model-to-hardware-mapping.html",
     markers: ["VPSidebar", "VPDocAside", "Model-to-Hardware Mapping"],
   },
+  {
+    file: "dist/client/en/topics.html",
+    markers: ["VPSidebar", "VPDocAside", "Topic Matrix"],
+  },
 ];
 
 const errors = [];
@@ -34,6 +38,20 @@ for (const page of pages) {
   const source = readFileSync(target, "utf8");
   for (const marker of page.markers) {
     if (!source.includes(marker)) errors.push(`${page.file}: missing rendered navigation marker ${marker}`);
+  }
+}
+
+const chunkDirectory = path.join(siteRoot, "dist/client/assets/chunks");
+if (!existsSync(chunkDirectory)) {
+  errors.push("dist/client/assets/chunks: built JavaScript chunks are missing");
+} else {
+  const frameworkChunks = readdirSync(chunkDirectory).filter((name) => /^framework\..+\.js$/.test(name));
+  if (!frameworkChunks.length) errors.push("Framework chunk is missing");
+  for (const chunk of frameworkChunks) {
+    const source = readFileSync(path.join(chunkDirectory, chunk), "utf8");
+    if (/from["']\.\/theme\./.test(source)) {
+      errors.push(`${chunk}: framework imports the theme chunk and recreates the runtime circular dependency`);
+    }
   }
 }
 

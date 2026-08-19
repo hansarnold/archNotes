@@ -84,14 +84,14 @@ topics:
 
 ## 与普通软件优化的边界
 
-如果改变只涉及同一语义下的 fusion、tiling、layout、调度或 kernel 选择，优先归入[跨架构软件优化方法](./software-optimization-methodology.md)。只有当模型语义、训练约束、数值契约或硬件能力之一需要联动改变时，才进入协同设计记录。
+如果改变只涉及同一语义下的 fusion、tiling、layout、调度或 kernel 选择，优先归入[Cross-Architecture Software Optimization](./software-optimization-methodology.md)。只有当模型语义、训练约束、数值契约或硬件能力之一需要联动改变时，才进入协同设计记录。
 
 ## 与其他主线的接口
 
-- [模型计算原语与 Workload 描述](./model-computation-primitives.md)把模型需求写成可计算账本。
-- [模型到硬件的完整映射](./model-to-hardware-mapping.md)提供当前跨层基线。
+- [Model Computation Primitives and Workload Description](./model-computation-primitives.md)把模型需求写成可计算账本。
+- [Model-to-Hardware Mapping](./model-to-hardware-mapping.md)提供当前跨层基线。
 - [AI 加速器架构统一对照](./ai-accelerator-architecture-comparison.md)描述硬件可供选择的能力与限制。
-- [性能建模与验证](./performance-modeling.md)量化候选方案并组织联合验收。
+- [Performance Modeling and Validation](./performance-modeling.md)量化候选方案并组织联合验收。
 
 ## 后续展开顺序
 

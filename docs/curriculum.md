@@ -42,16 +42,16 @@ ISA、计算单元、Memory、NoC、Interconnect
 
 | 主线 | 主要方向 | 唯一负责的问题 | 入口文档 |
 | --- | --- | --- | --- |
-| 1. 模型计算与 Workload | 模型 → 需求 | 模型到底产生什么计算、数据和通信？ | [模型计算原语与 Workload 描述](./notes/model-computation-primitives.md) |
-| 2. 模型到硬件的完整映射 | 上层 → 下层 | 一个 operation 怎样逐层变成设备执行？ | [模型到硬件的完整映射](./notes/model-to-hardware-mapping.md) |
-| 3. 硬件架构 | 硬件 → 契约 | 硬件提供哪些资源，把哪些责任交给软件？ | [四类加速器统一对照](./notes/ai-accelerator-architecture-comparison.md) |
-| 4. 软件优化 | 软件 → 利用率 | 不改变模型语义时，怎样减少时间、数据移动和浪费？ | [跨架构软件优化方法](./notes/software-optimization-methodology.md) |
-| 5. 模型—硬件协同设计 | 双向反馈 | 什么时候应该修改模型、数值或硬件契约？ | [模型—硬件协同设计](./notes/model-hardware-codesign.md) |
-| 6. 性能建模与验证 | 假设 → 证据 | 如何定量判断瓶颈并验证结论？ | [性能建模与验证](./notes/performance-modeling.md) |
+| 1. Model Computation and Workload | 模型 → 需求 | 模型到底产生什么计算、数据和通信？ | [Model Computation Primitives and Workload Description](./notes/model-computation-primitives.md) |
+| 2. Model-to-Hardware Mapping | 上层 → 下层 | 一个 operation 怎样逐层变成设备执行？ | [Model-to-Hardware Mapping](./notes/model-to-hardware-mapping.md) |
+| 3. Hardware Architecture | 硬件 → 契约 | 硬件提供哪些资源，把哪些责任交给软件？ | [AI Accelerator Architecture Comparison](./notes/ai-accelerator-architecture-comparison.md) |
+| 4. Software Optimization | 软件 → 利用率 | 不改变模型语义时，怎样减少时间、数据移动和浪费？ | [Cross-Architecture Software Optimization](./notes/software-optimization-methodology.md) |
+| 5. Model–Hardware Co-design | 双向反馈 | 什么时候应该修改模型、数值或硬件契约？ | [Model–Hardware Co-design](./notes/model-hardware-codesign.md) |
+| 6. Performance Modeling and Validation | 假设 → 证据 | 如何定量判断瓶颈并验证结论？ | [Performance Modeling and Validation](./notes/performance-modeling.md) |
 
 以上六篇是各主线的“所有权文档”。其他专论和案例只展开其中一个问题，不再重复定义整条主线。
 
-## 三、主线 1：模型计算与 Workload
+## 三、主线 1：Model Computation and Workload
 
 ### 核心问题
 
@@ -80,7 +80,7 @@ ISA、计算单元、Memory、NoC、Interconnect
 
 选择一个 Transformer block，为 prefill、decode 和 training 分别建立 computation/traffic ledger。只有当读者能解释同一个 block 为什么在不同阶段呈现不同瓶颈时，本主线才算完成。
 
-## 四、主线 2：模型到硬件的完整映射
+## 四、主线 2：Model-to-Hardware Mapping
 
 ### 核心问题
 
@@ -105,7 +105,7 @@ Model / Framework graph
 
 | 文档 | 角色 | 整改方向 |
 | --- | --- | --- |
-| [模型到硬件的完整映射](./notes/model-to-hardware-mapping.md) | 跨架构统一主干，框架已建立 | 用同一个 Transformer block 串起全部层级 |
+| [Model-to-Hardware Mapping](./notes/model-to-hardware-mapping.md) | 跨架构统一主干，框架已建立 | 用同一个 Transformer block 串起全部层级 |
 | [推理框架与运行时边界](./notes/inference-stack.md) | Framework/runtime 边界 | 补充 graph capture、specialization、lifecycle 与 serving boundary |
 | [Groq 编译器心智模型](./notes/compiler.md) | 静态时空调度案例 | 保持为厂商案例，不承担通用 compiler 教程 |
 | [ISA 与指令流](./notes/instruction-flow.md) | 指令流案例 | 连接 operation schedule 与 device instruction |
@@ -115,7 +115,7 @@ Model / Framework graph
 
 选取 `MatMul → activation → residual`，分别画出 GPU、Groq、Tensix 和 TPU 的 mapping ledger。每一层必须写明输入、输出、决策者和仍未确定的信息，不能用“compiler 自动处理”代替解释。
 
-## 五、主线 3：硬件架构
+## 五、主线 3：Hardware Architecture
 
 ### 核心问题
 
@@ -148,7 +148,7 @@ Model / Framework graph
 
 现有三个实验分别观察静态调度、CB pipeline 和 systolic wavefront。后续需要增加 GPU-style latency hiding 的简化模型，使四条架构主线都能落到可观察机制。
 
-## 六、主线 4：软件优化
+## 六、主线 4：Software Optimization
 
 ### 核心问题
 
@@ -169,7 +169,7 @@ Model / Framework graph
 
 | 文档 | 角色 | 核心内容 |
 | --- | --- | --- |
-| [跨架构软件优化方法](./notes/software-optimization-methodology.md) | 跨架构所有权文档，框架已建立 | Fusion、tiling、layout、buffering、quantization、sharding 和 profiling 的统一方法 |
+| [Cross-Architecture Software Optimization](./notes/software-optimization-methodology.md) | 跨架构所有权文档，框架已建立 | Fusion、tiling、layout、buffering、quantization、sharding 和 profiling 的统一方法 |
 | [Groq 风格的软件优化](./notes/software-optimization.md) | 厂商案例 | Chaining、SXM layout、weight preload 和 BERT mapping |
 | TPU 与 Tensix 专论中的优化章节 | 厂商案例 | MXU utilization、Pallas、CB、NoC 和 core placement |
 | GPU Tile 流水 | 机制案例 | Occupancy、async copy、barrier 和 pipeline ownership |
@@ -178,7 +178,7 @@ Model / Framework graph
 
 对同一个 workload 建立 baseline，每次只改变一个优化决策，并记录 FLOPs、bytes、latency、utilization、memory capacity 和 quality。无法说明优化改变了哪一项资源需求，就不能算完成优化分析。
 
-## 七、主线 5：模型—硬件协同设计
+## 七、主线 5：Model–Hardware Co-design
 
 ### 核心问题
 
@@ -199,7 +199,7 @@ Model / Framework graph
 
 | 文档 | 角色 |
 | --- | --- |
-| [模型—硬件协同设计](./notes/model-hardware-codesign.md) | 协同设计决策框架与统一案例模板，框架已建立 |
+| [Model–Hardware Co-design](./notes/model-hardware-codesign.md) | 协同设计决策框架与统一案例模板，框架已建立 |
 | 新增 `attention-memory-codesign.md` | Attention、KV cache、FlashAttention、GQA/MQA 案例 |
 | 新增 `numerics-sparsity-codesign.md` | Quantization、accumulation、structured sparsity 案例 |
 | 新增 `moe-system-codesign.md` | Expert routing、network、placement 与 load balance 案例 |
@@ -209,7 +209,7 @@ Model / Framework graph
 
 每个案例必须同时给出 baseline、约束、模型变化、硬件收益、软件代价和质量风险。只证明吞吐提升而不检查模型质量、状态容量或系统边界，不算协同设计结论。
 
-## 八、主线 6：性能建模与验证
+## 八、主线 6：Performance Modeling and Validation
 
 ### 核心问题
 
@@ -230,7 +230,7 @@ Model / Framework graph
 
 | 内容 | 状态 | 目标 |
 | --- | --- | --- |
-| [性能建模与验证](./notes/performance-modeling.md) | P0 框架已建立 | FLOPs/Bytes、roofline、capacity、latency decomposition 与 communication model |
+| [Performance Modeling and Validation](./notes/performance-modeling.md) | P0 框架已建立 | FLOPs/Bytes、roofline、capacity、latency decomposition 与 communication model |
 | 新增 `benchmark-methodology.md` | P1 | 公平输入、warmup、measurement boundary、quality、generation 与 topology |
 | [静态调度实验](./labs/static_scheduler.md) | 已有 | Dependency、resource conflict、transport delay |
 | [Tensix 流水实验](./labs/tensix_pipeline.md) | 已有 | Stage balance、buffer depth 与 backpressure |
@@ -247,12 +247,12 @@ Model / Framework graph
 
 | 问题 | 唯一归属 |
 | --- | --- |
-| Operation 和 workload 特征 | [模型计算原语与 Workload 描述](./notes/model-computation-primitives.md) |
-| 全栈 lowering 与执行路径 | [模型到硬件的完整映射](./notes/model-to-hardware-mapping.md) |
+| Operation 和 workload 特征 | [Model Computation Primitives and Workload Description](./notes/model-computation-primitives.md) |
+| 全栈 lowering 与执行路径 | [Model-to-Hardware Mapping](./notes/model-to-hardware-mapping.md) |
 | 四类硬件统一比较 | [四类加速器统一对照](./notes/ai-accelerator-architecture-comparison.md) |
-| 跨架构软件优化方法 | [跨架构软件优化方法](./notes/software-optimization-methodology.md) |
-| 模型—硬件反馈决策 | [模型—硬件协同设计](./notes/model-hardware-codesign.md) |
-| 性能量纲、模型和瓶颈分类 | [性能建模与验证](./notes/performance-modeling.md) |
+| Cross-Architecture Software Optimization | [Cross-Architecture Software Optimization](./notes/software-optimization-methodology.md) |
+| 模型—硬件反馈决策 | [Model–Hardware Co-design](./notes/model-hardware-codesign.md) |
+| 性能量纲、模型和瓶颈分类 | [Performance Modeling and Validation](./notes/performance-modeling.md) |
 | 公共术语 | [术语表](./glossary.md) |
 | 证据等级与资料 | [资料目录](./sources/catalog.md) |
 
@@ -276,11 +276,11 @@ Model / Framework graph
 
 ### P0：建立共同主干
 
-1. [模型计算原语与 Workload 描述](./notes/model-computation-primitives.md)
-2. [模型到硬件的完整映射](./notes/model-to-hardware-mapping.md)
-3. [跨架构软件优化方法](./notes/software-optimization-methodology.md)
-4. [模型—硬件协同设计](./notes/model-hardware-codesign.md)
-5. [性能建模与验证](./notes/performance-modeling.md)
+1. [Model Computation Primitives and Workload Description](./notes/model-computation-primitives.md)
+2. [Model-to-Hardware Mapping](./notes/model-to-hardware-mapping.md)
+3. [Cross-Architecture Software Optimization](./notes/software-optimization-methodology.md)
+4. [Model–Hardware Co-design](./notes/model-hardware-codesign.md)
+5. [Performance Modeling and Validation](./notes/performance-modeling.md)
 
 以上五篇框架和硬件架构主干均已落地，仓库现在具备六条可直接进入的主线。下一轮按 P1 顺序补充贯穿案例和定量内容，不在各厂商文章中重复定义主干。
 

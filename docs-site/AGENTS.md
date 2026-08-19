@@ -15,8 +15,9 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Use the official VitePress default theme rather than a custom visual theme. Product navigation, path-specific sidebars, outlines, search, appearance switching, code blocks, callouts, and badges should use VitePress's built-in components and configuration.
 - Organize top-level navigation by architecture family, and show only the relevant product's pages in the sidebar where possible.
 - Core interactions: documentation navigation, command-style search, theme switching, responsive mobile navigation, and in-page anchors.
-- The implementation now uses VitePress. Files under `../notes/`, `../sources/`, and lab READMEs are the canonical content; `scripts/sync-notes.mjs` generates the VitePress content tree.
+- The implementation uses VitePress. Files under `../docs/` are the only canonical content; the site reads them directly and must never generate, copy, rewrite, or backfill Markdown during build.
+- All body images and diagrams must already exist under `../docs/assets/` and be referenced directly by canonical Markdown. Mermaid authoring sources use `.mmd`; `npm run diagrams` exports the committed SVG before a normal build.
 - Do not reintroduce custom fonts, theme color overrides, bespoke page chrome, or a custom layout wrapper unless the user explicitly changes direction.
 - Do not classify notes with a single mixed taxonomy. The sidebar groups documents by role (orientation, architecture monograph, mechanism study, comparative/system study, experiment), while the topic matrix cross-indexes them by system layer and architecture family.
-- Every generated page must visibly identify its product(s), document type, and technical topics using the shared page-context treatment. Product attribution must be explicit in navigation labels when a short title would otherwise be ambiguous.
-- Do not edit generated files under `content/notes`, `content/sources`, or `content/labs`; update the canonical Markdown sources instead.
+- Every page must declare its product(s), document type, and technical topics in committed frontmatter. Product attribution must be explicit in navigation labels when a short title would otherwise be ambiguous.
+- Do not create a second content tree under `docs-site/`. Edit only the canonical Markdown and assets under `../docs/`.

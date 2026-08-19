@@ -1,0 +1,20 @@
+sequenceDiagram
+    participant P as Producer
+    participant S0 as Stage 0
+    participant S1 as Stage 1
+    participant C as Consumer
+
+    P->>S0: fill tile k
+    S0-->>C: full(k)
+    par overlap
+        C->>C: consume tile k from S0
+    and
+        P->>S1: fill tile k+1
+    end
+    C-->>S0: empty(k)
+    S1-->>C: full(k+1)
+    par next overlap
+        C->>C: consume tile k+1 from S1
+    and
+        P->>S0: fill tile k+2 only after empty(k)
+    end

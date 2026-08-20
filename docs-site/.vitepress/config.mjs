@@ -55,48 +55,20 @@ const overviewSidebar = [
     ],
   },
   {
-    text: "软件与运行时",
+    text: "指令与软件栈",
     collapsed: true,
-    items: [item("notes/inference-stack", "推理框架与运行时")],
+    items: [
+      item("notes/instruction-flow", "ISA 与指令流"),
+      item("notes/compiler", "静态编译与调度"),
+      item("notes/software-optimization", "Groq 优化方法"),
+      item("notes/inference-stack", "推理框架与 Runtime"),
+    ],
   },
   {
     text: "实验",
     collapsed: true,
     items: [item("labs/static_scheduler", "静态时空调度"), item("labs/tensix_pipeline", "Tensix 流水与背压"), item("labs/systolic_array", "Systolic Array 波前")],
   },
-  { text: "参考", items: [item("glossary", "Glossary"), item("sources/catalog", "Source Catalog")] },
-];
-
-const nvidiaSidebar = [
-  { text: "NVIDIA GPU", items: [item("notes/nvidia-gpu-synchronization", "Tile 流水与同步")] },
-  {
-    text: "横向比较",
-    items: [item("notes/lpu-vs-gpu", "LPU/TSP 与 GPU"), item("notes/tenstorrent-rethinking-gpu-sm", "GPU SM 与 Tensix")],
-  },
-  { text: "异构系统", items: [item("notes/nvidia-groq3-heterogeneous-inference", "Rubin GPU + Groq 3 LPX")] },
-  { text: "参考", items: [item("glossary", "Glossary"), item("sources/catalog", "Source Catalog")] },
-];
-
-const groqSidebar = [
-  { text: "Groq TSP", items: [item("notes/architecture", "架构概览")] },
-  { text: "指令与调度", items: [item("notes/instruction-flow", "ISA 与指令流"), item("notes/compiler", "静态编译与调度")] },
-  { text: "软件与 Runtime", items: [item("notes/software-optimization", "优化方法"), item("notes/inference-stack", "推理框架与 Runtime")] },
-  { text: "比较与系统", items: [item("notes/lpu-vs-gpu", "LPU/TSP 与 GPU"), item("notes/groq-tenstorrent-comparison", "Groq、Tensix 与 GPU"), item("notes/nvidia-groq3-heterogeneous-inference", "GPU + LPX 异构推理")] },
-  { text: "实验", items: [item("labs/static_scheduler", "静态时空调度")] },
-  { text: "参考", items: [item("glossary", "Glossary"), item("sources/catalog", "Source Catalog")] },
-];
-
-const tensixSidebar = [
-  { text: "Tenstorrent Tensix", items: [item("notes/tenstorrent-architecture", "架构与软件栈")] },
-  { text: "机制与比较", items: [item("notes/tenstorrent-rethinking-gpu-sm", "从 GPU SM 到 Tensix"), item("notes/groq-tenstorrent-comparison", "Groq、Tensix 与 GPU")] },
-  { text: "实验", items: [item("labs/tensix_pipeline", "流水线与背压")] },
-  { text: "参考", items: [item("glossary", "Glossary"), item("sources/catalog", "Source Catalog")] },
-];
-
-const tpuSidebar = [
-  { text: "Google TPU", items: [item("notes/google-tpu-architecture", "Systolic Array、XLA 与 Pod")] },
-  { text: "横向比较", items: [item("notes/ai-accelerator-architecture-comparison", "四类架构统一对照")] },
-  { text: "实验", items: [item("labs/systolic_array", "Systolic Array 波前")] },
   { text: "参考", items: [item("glossary", "Glossary"), item("sources/catalog", "Source Catalog")] },
 ];
 
@@ -161,7 +133,7 @@ const englishSidebar = [
   },
 ];
 
-const knownNotePaths = new Set([overviewSidebar, nvidiaSidebar, groqSidebar, tensixSidebar, tpuSidebar].flat(2).flatMap((entry) => entry?.items || []).map((entry) => entry.link));
+const knownNotePaths = new Set(overviewSidebar.flatMap((entry) => entry.items || []).map((entry) => entry.link));
 const otherNotes = readdirSync(path.join(contentRoot, "notes"))
   .filter((name) => name.endsWith(".md"))
   .map((name) => `notes/${name.slice(0, -3)}`)
@@ -173,14 +145,7 @@ if (otherNotes.length) {
   overviewSidebar.splice(-1, 0, { text: "待归档", collapsed: true, items: otherNotes });
 }
 
-const sidebarForRoutes = (routes, sidebar) => Object.fromEntries(routes.map((route) => [route, sidebar]));
-const sidebars = {
-  ...sidebarForRoutes(["/notes/nvidia-gpu-synchronization"], nvidiaSidebar),
-  ...sidebarForRoutes(["/notes/architecture", "/notes/instruction-flow", "/notes/compiler", "/notes/software-optimization", "/labs/static_scheduler"], groqSidebar),
-  ...sidebarForRoutes(["/notes/tenstorrent-architecture", "/labs/tensix_pipeline"], tensixSidebar),
-  ...sidebarForRoutes(["/notes/google-tpu-architecture", "/labs/systolic_array"], tpuSidebar),
-  "/": overviewSidebar,
-};
+const sidebars = { "/": overviewSidebar };
 
 const rootLocaleThemeConfig = {
   nav: [

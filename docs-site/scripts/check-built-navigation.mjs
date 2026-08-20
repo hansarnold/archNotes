@@ -12,7 +12,23 @@ const pages = [
   },
   {
     file: "dist/client/notes/model-to-hardware-mapping.html",
-    markers: ["VPSidebar", "VPDocAside", "Model-to-Hardware Mapping"],
+    markers: ["VPSidebar", "VPDocAside", "全栈主干", "架构专论", "比较与系统", "指令与软件栈", "实验", "参考"],
+  },
+  {
+    file: "dist/client/notes/nvidia-gpu-synchronization.html",
+    markers: ["VPSidebar", "VPDocAside", "全栈主干", "架构专论", "比较与系统", "指令与软件栈", "实验", "参考"],
+  },
+  {
+    file: "dist/client/notes/architecture.html",
+    markers: ["VPSidebar", "VPDocAside", "全栈主干", "架构专论", "比较与系统", "指令与软件栈", "实验", "参考"],
+  },
+  {
+    file: "dist/client/notes/tenstorrent-architecture.html",
+    markers: ["VPSidebar", "VPDocAside", "全栈主干", "架构专论", "比较与系统", "指令与软件栈", "实验", "参考"],
+  },
+  {
+    file: "dist/client/notes/google-tpu-architecture.html",
+    markers: ["VPSidebar", "VPDocAside", "全栈主干", "架构专论", "比较与系统", "指令与软件栈", "实验", "参考"],
   },
   {
     file: "dist/client/en/index.html",

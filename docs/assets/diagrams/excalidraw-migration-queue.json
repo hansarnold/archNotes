@@ -41,24 +41,6 @@
       "outcome": "migrated-to-excalidraw"
     },
     {
-      "id": "nvidia-gpu-synchronization-lifecycle",
-      "priority": "P0",
-      "status": "migrated",
-      "currentAsset": "docs/assets/diagrams/nvidia-gpu-synchronization-lifecycle.svg",
-      "targetSource": "docs/assets/diagrams/nvidia-gpu-synchronization-lifecycle.excalidraw",
-      "targetAsset": "docs/assets/diagrams/nvidia-gpu-synchronization-lifecycle.svg",
-      "kind": "mental-model",
-      "claim": "A logical tile advances through a partial order of Work, Data, shared-stage ownership, and output-lifetime gates; shared reuse and output reuse require distinct returns.",
-      "question": "Which gates move tile k from A[k] through S[slot,g] to C[k], and which receipts separately return shared and output storage?",
-      "audience": "CUDA developers diagnosing synchronization correctness and performance",
-      "scope": "Canonical lifecycle for A[k], Work gates, S[slot,g], C[k], shared-stage reuse, and output reuse; primitive details remain in later zooms",
-      "readingOrder": "Follow only explicit arrows across Work, Data, and Ownership lanes; shared-stage empty and output last-user completion are separate returns",
-      "evidence": ["docs/notes/nvidia-gpu-synchronization.md"],
-      "localeScope": "zh-only",
-      "presentation": "overview-plus-details",
-      "outcome": "migrated-to-excalidraw"
-    },
-    {
       "id": "nvidia-groq3-heterogeneous-inference-01",
       "priority": "P0",
       "status": "migrated",

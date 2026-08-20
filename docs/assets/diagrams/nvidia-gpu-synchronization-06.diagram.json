@@ -1,13 +1,18 @@
 {
   "kind": "sequence",
-  "claim": "The mbarrier phase for S[slot,g] completes only after the software arrival and the TMA transfer repays its tracked transaction bytes; only then can the consumer acquire that generation.",
-  "question": "How does completion move from an elected TMA submitter through the async engine to a consumer?",
-  "audience": "CUDA developers learning TMA and mbarrier transaction accounting",
-  "scope": "One elected producer, one TMA transfer, mbarrier transaction completion, and one consumer; assumes the required source and proxy handoff described in the surrounding prose",
-  "readingOrder": "Read top to bottom from producer arrival, expected-byte registration, and the copy of tile k into S[slot,g], through transaction repayment and matching phase-g completion, to consumer acquire",
-  "evidence": ["docs/notes/nvidia-gpu-synchronization.md"],
+  "claim": "A consumer's mbarrier parity wait for Stage i, phase p returns only after the elected producer's single arrival and all transaction bytes tracked for the TMA copy have completed; issuing the copy alone is not sufficient.",
+  "question": "Which native TMA and mbarrier events must occur before a consumer warpgroup's parity wait lets it read a shared-memory stage?",
+  "audience": "CUDA developers learning Hopper TMA and asynchronous transaction barriers",
+  "scope": "One elected producer thread contributes the single software arrival and expected transaction bytes for one TMA global-to-shared copy; consumer threads use an mbarrier parity wait for the same shared-memory phase. Source preparation, proxy handoff details, TensorMap construction, and exact copy latency remain outside the sequence.",
+  "readingOrder": "Read top to bottom: the elected producer contributes one arrival, registers expected transaction bytes for Stage i, phase p, and issues the TMA copy; consumers may call try_wait_parity(p), but the matching wait returns only after that arrival and all tracked transaction bytes are complete.",
+  "evidence": [
+    "docs/notes/nvidia-gpu-synchronization.md",
+    "https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/async-barriers.html",
+    "https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/advanced-kernel-programming.html",
+    "https://docs.nvidia.com/cuda/parallel-thread-execution/"
+  ],
   "localeScope": "zh-only",
   "presentation": "zoom",
-  "scorecard": {"necessity":19,"technicalCorrectness":25,"readability":17,"hierarchy":13,"terminology":9,"accessibility":5,"maintainability":5,"total":93},
+  "scorecard": {"necessity":19,"technicalCorrectness":25,"readability":18,"hierarchy":14,"terminology":10,"accessibility":5,"maintainability":5,"total":96},
   "outcome": "pass"
 }

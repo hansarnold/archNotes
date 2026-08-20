@@ -1,16 +1,20 @@
-%%{init: {"themeVariables": {"fontSize": "22px"}, "sequence": {"diagramMarginX": 8, "actorMargin": 10, "width": 72, "messageMargin": 20, "mirrorActors": false}}}%%
+%%{init: {"themeVariables": {"fontSize": "26px"}, "sequence": {"diagramMarginX": 6, "diagramMarginY": 4, "actorMargin": 8, "width": 72, "messageMargin": 10, "mirrorActors": false}}}%%
 sequenceDiagram
     participant P as Producer
-    participant S0 as Stage 0
-    participant S1 as Stage 1
+    participant Q as cuda::pipeline<br/>2 stages
+    participant S as Shared memory<br/>Stage 0 / Stage 1
     participant C as Consumer
 
-    P->>S0: fill tile k @ g
-    S0-->>C: full(0,g)
-    par overlap
-        C->>C: consume tile k from S0
-    and
-        P->>S1: fill tile k+1 @ g
+    P->>Q: producer_acquire() · S0 for k
+    P->>S: cuda::memcpy_async(…, pipeline)
+    P->>Q: producer_commit()
+    C->>Q: consumer_wait() → S0 ready
+    par consume Stage 0
+        C->>S: consume k from S0
+    and fill Stage 1
+        P->>Q: producer_acquire() · S1 for k+1
+        P->>S: cuda::memcpy_async(…, pipeline)
+        P->>Q: producer_commit()
     end
-    C-->>S0: empty(0,g+1)
-    P->>S0: fill tile k+2 @ g+1
+    C->>Q: consumer_release() · Stage 0
+    P->>Q: producer_acquire() → S0 for k+2

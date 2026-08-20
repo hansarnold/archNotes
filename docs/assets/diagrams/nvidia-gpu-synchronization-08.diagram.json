@@ -1,13 +1,17 @@
 {
   "kind": "sequence",
-  "claim": "Two physical stages overlap producer fill with consumer use, while empty(0,g+1) prevents Stage 0 from carrying tile k+2 before tile k is released.",
-  "question": "How do full and empty receipts make a two-stage pipeline overlap without overwriting live data?",
-  "audience": "CUDA developers tuning bounded double-buffered pipelines",
-  "scope": "Stage 0 and Stage 1 while the consumer uses logical tile k at generation g, the producer fills k+1, and Stage 0 advances to generation g+1 for tile k+2; excludes exact latency and throughput",
-  "readingOrder": "Read top to bottom; the par block overlaps consume(k) with fill(k+1), and Stage 0 accepts tile k+2 only after empty(0,g+1)",
-  "evidence": ["docs/notes/nvidia-gpu-synchronization.md"],
+  "claim": "A two-stage cuda::pipeline bound to cuda::memcpy_async(..., pipeline) can copy tile k+1 into Shared Stage 1 while consumers use tile k from Shared Stage 0, but producer_acquire for tile k+2 cannot make Stage 0 available again until consumer_release releases it.",
+  "question": "How do the native cuda::pipeline producer and consumer operations create safe overlap across two shared-memory stages?",
+  "audience": "CUDA developers learning double buffering with cuda::pipeline",
+  "scope": "One cuda::pipeline with two shared-memory stages, producer threads, and consumer threads while cuda::memcpy_async(..., pipeline) copies tile k and tile k+1 and Stage 0 is later reused for tile k+2. This is the cuda::pipeline-bound async-copy path; it does not imply that an independent TMA operation tracked by mbarrier automatically participates in cuda::pipeline. Exact transfer latency, warp entanglement, and throughput tuning are excluded.",
+  "readingOrder": "Read top to bottom: producer_acquire, cuda::memcpy_async(..., pipeline), and producer_commit publish tile k into Stage 0; consumer_wait returns when that copy is complete; consuming Stage 0 overlaps acquisition and the same pipeline-bound copy into Stage 1; only consumer_release allows a later producer_acquire to return Stage 0 for tile k+2.",
+  "evidence": [
+    "docs/notes/nvidia-gpu-synchronization.md",
+    "https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/pipelines.html",
+    "https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/advanced-kernel-programming.html"
+  ],
   "localeScope": "zh-only",
   "presentation": "zoom",
-  "scorecard": {"necessity":19,"technicalCorrectness":25,"readability":17,"hierarchy":13,"terminology":9,"accessibility":5,"maintainability":5,"total":93},
+  "scorecard": {"necessity":19,"technicalCorrectness":25,"readability":18,"hierarchy":14,"terminology":10,"accessibility":5,"maintainability":5,"total":96},
   "outcome": "pass"
 }

@@ -1,7 +1,24 @@
-%%{init: {"flowchart": {"diagramPadding": 8, "nodeSpacing": 36, "rankSpacing": 30, "padding": 8}}}%%
+%%{init: {"themeVariables": {"fontSize": "26px"}, "flowchart": {"diagramPadding": 8, "nodeSpacing": 24, "rankSpacing": 46, "padding": 6}}}%%
 flowchart TD
-    E(("K_done<br/>receipt")) -->|"device edge"| K2["downstream task waits<br/>and consumes output"]
-    E -->|"host / API edge"| HOST["host or communication<br/>protocol uses output"]
-    K2 -->|"branch completes"| LAST["all active C[k] users complete<br/>last_user_done"]
-    HOST -->|"branch completes"| LAST
-    LAST --> FREE["freeAsync /<br/>pool reuse"]
+    subgraph SK[" "]
+        direction LR
+        K["stream_K<br/>kernel K writes C_d"] --> RK["cudaEventRecord<br/>kernel_done · stream_K"]
+    end
+
+    subgraph SD[" "]
+        direction LR
+        WD["downstream_stream<br/>cudaStreamWaitEvent<br/>kernel_done"] --> U["consumer kernel<br/>reads C_d"]
+        U --> RU["cudaEventRecord<br/>use_done<br/>downstream_stream"]
+    end
+
+    subgraph SF[" "]
+        direction LR
+        WF["free_stream<br/>cudaStreamWaitEvent<br/>use_done"] --> F["cudaFreeAsync<br/>C_d · free_stream"]
+    end
+
+    RK -->|"kernel_done event"| WD
+    RU -->|"use_done event"| WF
+
+    style SK fill:transparent,stroke:#cbd5e1,stroke-width:1px
+    style SD fill:transparent,stroke:#cbd5e1,stroke-width:1px
+    style SF fill:transparent,stroke:#cbd5e1,stroke-width:1px

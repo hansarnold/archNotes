@@ -1,13 +1,17 @@
 {
   "kind": "flowchart",
-  "claim": "K_done can release downstream work, but buffer reuse must wait for the last downstream user.",
-  "question": "How does a task-completion receipt relate to storage lifetime?",
-  "audience": "CUDA developers using streams, events, and stream-ordered allocation",
-  "scope": "K_done fan-out to the active device, host, or communication branches that legally use C[k], their convergence at last_user_done, and output-buffer reuse",
-  "readingOrder": "Top to bottom; follow every active C[k] user branch opened after K_done, then require all such branches to converge at last_user_done before output storage returns",
-  "evidence": ["docs/notes/nvidia-gpu-synchronization.md"],
+  "claim": "Recording kernel_done after kernel K lets a downstream stream wait before reading C_d, but cudaFreeAsync(C_d) must be placed in a stream that also waits for use_done after the downstream read.",
+  "question": "Which concrete stream and event dependencies place cudaFreeAsync(C_d) after both kernel production and downstream use?",
+  "audience": "CUDA developers using events across streams and the stream-ordered memory allocator",
+  "scope": "One kernel on stream_K, one downstream consumer stream, and one free stream connected by kernel_done and use_done events. Additional consumer streams require corresponding dependencies and are intentionally omitted from this minimal DAG.",
+  "readingOrder": "Read the three horizontal stream lanes from top to bottom. Each lane names its stream in the first node: stream_K writes C_d and records kernel_done; downstream_stream waits for that event, reads C_d, and records use_done; free_stream waits for use_done before enqueueing cudaFreeAsync(C_d). Cross-lane arrows connect the concrete event record and wait nodes rather than container labels.",
+  "evidence": [
+    "docs/notes/nvidia-gpu-synchronization.md",
+    "https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/asynchronous-execution.html",
+    "https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/stream-ordered-memory-allocation.html"
+  ],
   "localeScope": "zh-only",
   "presentation": "zoom",
-  "scorecard": {"necessity":18,"technicalCorrectness":25,"readability":18,"hierarchy":14,"terminology":9,"accessibility":5,"maintainability":5,"total":94},
+  "scorecard": {"necessity":19,"technicalCorrectness":25,"readability":18,"hierarchy":14,"terminology":10,"accessibility":5,"maintainability":5,"total":96},
   "outcome": "pass"
 }

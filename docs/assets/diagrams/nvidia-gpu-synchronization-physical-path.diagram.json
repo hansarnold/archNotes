@@ -1,0 +1,31 @@
+{
+  "kind": "dataflow",
+  "claim": "The bytes for tile k are read from A[k] inside allocation A_d, copied by TMA through a shared-memory stage into distributed accumulator registers, and written to C[k] inside allocation C_d; stream/event dependencies, a matching stage-release protocol, and stream-ordered cudaFreeAsync define downstream execution and safe reuse.",
+  "question": "How do tile k's bytes travel from the A[k] region of A_d through TMA, shared memory, WGMMA, and epilogue into the C[k] region of C_d, and which CUDA APIs or matching completion protocols permit downstream execution, stage reuse, and allocation release?",
+  "audience": "CUDA developers who understand kernel tiling and need a programmer-visible path across Host submission, global memory, shared memory, tensor-core execution, and stream-ordered reuse",
+  "scope": "A programmer-visible CUDA path for one Hopper-class tile. Host submission and optional H2D/D2H are separate from the canonical device path. The CUDA EXECUTION band juxtaposes two programmer-model facts rather than a scheduling pipeline: operation ordering uses streams/events, while kernel containment places thread blocks in a grid and the participating Hopper warpgroup within a block. A_d and C_d are global-memory allocations containing the A[k] and C[k] tile regions; L2 may cache their accesses. TMA straddles the memory/SM boundary to show a logical asynchronous transfer without claiming exact die topology or cache routing. Shared Stage i is guarded by mbarrier phase p, while WGMMA produces distributed accumulator registers. Epilogue is code that writes C[k].",
+  "readingOrder": "Start at CPU app, Runtime/Driver, and Stream operations. In CUDA EXECUTION, read operation ordering and kernel containment as parallel facts, not sequential scheduler stages. The blue dashed dependency records event in stream_K after the kernel and makes downstream_stream wait with cudaStreamWaitEvent(downstream_stream, event); cudaEventRecord alone does not order another stream. Follow the solid green path from the A[k] tile region in A_d through the elected producer's TMA asynchronous copy, Shared Stage i guarded by mbarrier phase p, WGMMA distributed accumulator registers, epilogue stores, the C[k] tile region in C_d, and downstream device, Host, or communication uses. Matching asynchronous-copy completion means that transfer no longer reads A[k], but any other relevant access must still be ordered before A_d is reused. After the last legal shared-memory use, the matching stage-release protocol lets the producer reacquire Stage i. cudaFreeAsync(C_d, free_stream) is enqueued only after every relevant use of C_d has been ordered before it; those uses need not already have completed when the Host enqueues the free. Treat H2D and D2H as optional Host-memory extensions.",
+  "evidence": [
+    "docs/notes/nvidia-gpu-synchronization.md",
+    "https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/asynchronous-execution.html",
+    "https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/advanced-host-programming.html",
+    "https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/advanced-kernel-programming.html",
+    "https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/async-barriers.html",
+    "https://docs.nvidia.com/cuda/parallel-thread-execution/",
+    "https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__MEMORY__POOLS.html",
+    "https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/stream-ordered-memory-allocation.html"
+  ],
+  "localeScope": "zh-only",
+  "presentation": "zoom",
+  "scorecard": {
+    "necessity": 20,
+    "technicalCorrectness": 25,
+    "readability": 18,
+    "hierarchy": 14,
+    "terminology": 10,
+    "accessibility": 5,
+    "maintainability": 5,
+    "total": 97
+  },
+  "outcome": "pass"
+}

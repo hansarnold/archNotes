@@ -1,0 +1,15 @@
+{
+  "kind": "pipeline",
+  "claim": "Reader, compute, and writer kernels overlap by exchanging tile ownership through circular buffers in local SRAM.",
+  "question": "Who moves, computes, and releases each tile in a Tensix core pipeline?",
+  "audience": "TT-Metalium learners and cross-architecture performance engineers",
+  "scope": "Per-core steady-state pipeline; excludes the complete device and mesh topology",
+  "readingOrder": "Read the three responsibility lanes left to right, using Input CB and Output CB as the ownership handoff boundaries",
+  "evidence": [
+    "docs/notes/tenstorrent-architecture.md"
+  ],
+  "localeScope": "zh-only",
+  "presentation": "zoom",
+  "scorecard": {"necessity":19,"technicalCorrectness":24,"readability":18,"hierarchy":14,"terminology":9,"accessibility":5,"maintainability":4,"total":93},
+  "outcome": "pass"
+}

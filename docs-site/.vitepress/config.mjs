@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { defineConfig } from "vitepress";
+import { configureTechnicalDiagrams } from "./markdown/technical-diagrams.mjs";
 
 const siteRoot = path.resolve(import.meta.dirname, "..");
 const repositoryRoot = path.resolve(siteRoot, "..");
@@ -247,6 +248,9 @@ export default defineConfig({
   markdown: {
     theme: { light: "github-light", dark: "github-dark" },
     lineNumbers: true,
+    config(markdown) {
+      configureTechnicalDiagrams(markdown);
+    },
   },
   themeConfig: {
     siteTitle: "archNotes",

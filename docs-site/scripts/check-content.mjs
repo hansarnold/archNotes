@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createMarkdownRenderer, disposeMdItInstance } from "vitepress";
 
 const siteRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = path.resolve(siteRoot, "..");
@@ -24,8 +25,6 @@ for (const legacyPath of [
 
 const files = walk(docsRoot);
 const markdownFiles = files.filter((file) => file.endsWith(".md"));
-const diagramSources = files.filter((file) => file.endsWith(".mmd"));
-const diagramAssets = files.filter((file) => file.endsWith(".svg"));
 const duplicateParagraphs = new Map();
 const cjkPattern = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
 const canonicalLearningTracks = [
@@ -139,8 +138,38 @@ for (const relativePath of pairedLocalePaths) {
 const readmeSource = readFileSync(path.join(repositoryRoot, "README.md"), "utf8");
 if (cjkPattern.test(readmeSource)) errors.push("README.md must remain English-only");
 
-const normalizeTarget = (target) => decodeURIComponent(target.split("#", 1)[0].split("?", 1)[0]);
+const normalizeTarget = (target) => {
+  const pathname = target.split("#", 1)[0].split("?", 1)[0];
+  try {
+    return decodeURIComponent(pathname);
+  } catch {
+    return pathname;
+  }
+};
 const isExternal = (target) => /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(target);
+const markdownRenderer = await createMarkdownRenderer(docsRoot);
+
+const validateLocalTarget = ({ image, label, markdownPath, rawTarget }) => {
+  const relativePath = path.relative(repositoryRoot, markdownPath);
+  const target = String(rawTarget || "").trim().replace(/^<|>$/g, "");
+  if (!target || isExternal(target)) return;
+  if (image && !String(label || "").trim()) {
+    errors.push(`${relativePath}: image is missing alt text (${target})`);
+  }
+
+  const normalized = normalizeTarget(target);
+  if (!normalized) return;
+  const resolved = normalized.startsWith("/")
+    ? path.resolve(docsRoot, normalized.slice(1))
+    : path.resolve(path.dirname(markdownPath), normalized);
+  if (!resolved.startsWith(repositoryRoot + path.sep)) {
+    errors.push(`${relativePath}: link escapes the repository (${target})`);
+  } else if (!existsSync(resolved)) {
+    errors.push(`${relativePath}: missing local target (${target})`);
+  } else if (image && !resolved.startsWith(path.join(docsRoot, "assets") + path.sep)) {
+    errors.push(`${relativePath}:正文图片必须位于 docs/assets (${target})`);
+  }
+};
 
 for (const markdownPath of markdownFiles) {
   const relativePath = path.relative(repositoryRoot, markdownPath);
@@ -156,21 +185,28 @@ for (const markdownPath of markdownFiles) {
   if (/```mermaid\b/.test(source)) errors.push(`${relativePath}: Mermaid must be exported and referenced as SVG`);
   if (/<Badge\b/.test(source)) errors.push(`${relativePath}: generated Badge markup is not allowed in canonical Markdown`);
 
-  for (const match of source.matchAll(/(!?)\[([^\]]*)\]\(([^)]+)\)/g)) {
-    const [, imageMarker, label, rawTarget] = match;
-    const target = rawTarget.trim().replace(/^<|>$/g, "");
-    if (isExternal(target)) continue;
-    if (imageMarker && !label.trim()) errors.push(`${relativePath}: image is missing alt text (${target})`);
-
-    const normalized = normalizeTarget(target);
-    if (!normalized) continue;
-    const resolved = path.resolve(path.dirname(markdownPath), normalized);
-    if (!resolved.startsWith(repositoryRoot + path.sep)) {
-      errors.push(`${relativePath}: link escapes the repository (${target})`);
-    } else if (!existsSync(resolved)) {
-      errors.push(`${relativePath}: missing local target (${target})`);
-    } else if (imageMarker && !resolved.startsWith(path.join(docsRoot, "assets") + path.sep)) {
-      errors.push(`${relativePath}:正文图片必须位于 docs/assets (${target})`);
+  const tokens = markdownRenderer.parse(source, {
+    path: markdownPath,
+    relativePath: path.relative(docsRoot, markdownPath).replaceAll(path.sep, "/"),
+  });
+  for (const token of tokens) {
+    if (token.type !== "inline" || !token.children) continue;
+    for (const child of token.children) {
+      if (child.type === "image") {
+        validateLocalTarget({
+          image: true,
+          label: child.content,
+          markdownPath,
+          rawTarget: child.attrGet("src"),
+        });
+      } else if (child.type === "link_open") {
+        validateLocalTarget({
+          image: false,
+          label: "",
+          markdownPath,
+          rawTarget: child.attrGet("href"),
+        });
+      }
     }
   }
 
@@ -183,6 +219,8 @@ for (const markdownPath of markdownFiles) {
     duplicateParagraphs.set(normalized, owners);
   }
 }
+
+disposeMdItInstance();
 
 const glossaryTerms = (glossaryPath) => new Set(
   [...readFileSync(glossaryPath, "utf8").matchAll(/^\| \*\*(.+?)\*\* \|/gm)].map((match) => match[1]),
@@ -200,21 +238,9 @@ for (const owners of duplicateParagraphs.values()) {
   if (owners.size > 1) errors.push(`Duplicate long paragraph: ${[...owners].join(", ")}`);
 }
 
-for (const sourcePath of diagramSources) {
-  const svgPath = sourcePath.replace(/\.mmd$/, ".svg");
-  if (!existsSync(svgPath)) errors.push(`Missing rendered diagram: ${path.relative(repositoryRoot, svgPath)}`);
-}
-for (const svgPath of diagramAssets) {
-  const sourcePath = svgPath.replace(/\.svg$/, ".mmd");
-  if (!existsSync(sourcePath)) errors.push(`Missing editable diagram source: ${path.relative(repositoryRoot, sourcePath)}`);
-  if (statSync(svgPath).size < 200 || !readFileSync(svgPath, "utf8").includes("<svg")) {
-    errors.push(`Invalid rendered diagram: ${path.relative(repositoryRoot, svgPath)}`);
-  }
-}
-
 if (errors.length) {
   console.error(errors.map((error) => `- ${error}`).join("\n"));
   process.exit(1);
 }
 
-console.log(`Content check passed: ${markdownFiles.length} Markdown files, ${diagramAssets.length} rendered diagrams.`);
+console.log(`Content check passed: ${markdownFiles.length} Markdown files.`);

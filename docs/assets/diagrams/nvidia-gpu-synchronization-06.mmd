@@ -1,14 +1,15 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}, "sequence": {"diagramMarginX": 8, "actorMargin": 12, "width": 96, "messageMargin": 24, "mirrorActors": false}}}%%
 sequenceDiagram
-    participant P as Producer / elected thread
-    participant M as Shared mbarrier phase k
-    participant T as TMA async engine
-    participant C as Consumer warpgroup
+    participant P as Producer
+    participant M as mbarrier(slot,g)
+    participant T as TMA engine
+    participant C as Consumer
 
-    P->>M: initialize phase / expect transaction bytes
-    P->>T: issue TMA for tile k
-    Note over P,T: producer can continue independent work
-    T->>T: move global tile into shared stage
-    T-->>M: complete transaction bytes
-    C->>M: wait/test phase k
-    M-->>C: phase complete
-    C->>C: acquire and consume shared tile
+    P->>M: arrive + expect bytes
+    P->>T: issue k to S[slot,g]
+    Note over P,T: producer continues independent work
+    T->>T: copy to shared
+    T-->>M: repay tracked bytes
+    C->>M: wait token/parity g
+    M-->>C: phase g complete
+    C->>C: acquire then read

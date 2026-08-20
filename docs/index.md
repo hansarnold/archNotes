@@ -13,7 +13,7 @@ archNotes 研究 Model Computation 怎样经过 Compiler、Runtime 和 Kernel �
 
 内容以[六条主线课程蓝图](./curriculum.md)为骨架，以[主题矩阵](./topics.md)进行交叉索引；侧边栏继续按文档用途组织，避免把厂商、抽象层级和文章类型混在一起。
 
-![四种 AI accelerator 中 Tile 的 Execution Model](./assets/images/tile-execution-models.png)
+![四列对比：NVIDIA GPU 由 runtime 和 warp scheduler 动态选工；Groq 由 compiler 的 time-space plan 驱动 SRAM stream；Tensix 由 Reader、Compute、Writer 通过 circular buffer 交接；TPU 由 XLA schedule 和 systolic wave 推进 tile](./assets/diagrams/tile-execution-models.svg "四种架构使用同一组比较轴，但 Tile 的调度者、Memory 路径和 Compute 目的地不同。")
 
 ## 从统一分析坐标系开始
 

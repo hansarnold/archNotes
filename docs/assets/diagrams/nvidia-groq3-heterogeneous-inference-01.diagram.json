@@ -1,0 +1,15 @@
+{
+  "kind": "dataflow",
+  "claim": "Dynamo orchestrates a repeated GPU-attention and LPX-FFN activation loop rather than moving an arbitrary CUDA kernel to the LPU.",
+  "question": "What crosses the GPU-LPX boundary during one decode token?",
+  "audience": "Readers evaluating heterogeneous inference partitioning",
+  "scope": "AFD request path and intermediate activations; excludes unpublished transport and fusion details",
+  "readingOrder": "Start at the request and Dynamo, enter GPU prefill, follow the highlighted activation loop between GPU attention and LPX FFN, then continue to token output",
+  "evidence": [
+    "docs/notes/nvidia-groq3-heterogeneous-inference.md"
+  ],
+  "localeScope": "zh-only",
+  "presentation": "zoom",
+  "scorecard": {"necessity":19,"technicalCorrectness":24,"readability":18,"hierarchy":14,"terminology":9,"accessibility":5,"maintainability":4,"total":93},
+  "outcome": "pass"
+}

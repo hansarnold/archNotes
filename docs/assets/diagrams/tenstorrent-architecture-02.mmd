@@ -1,6 +1,0 @@
-flowchart TD
-    F["PyTorch / JAX / ONNX / model frontends"] --> Forge["TT-Forge"]
-    Forge --> MLIR["TT-MLIR\nTTIR / TTNN / D2M / TTKernel / TTMetal"]
-    MLIR --> NN["TT-NN op library"]
-    NN --> Metal["TT-Metalium runtime + kernels"]
-    Metal --> HW["Tensix cores / SRAM / NoC / DRAM / mesh"]

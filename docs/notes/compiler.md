@@ -28,7 +28,18 @@ topics: ["编译器","时空调度","资源规划"]
 
 ## 2. 从模型到指令流
 
-![2. 从模型到指令流](../assets/diagrams/compiler-01.svg)
+这不是一套可验证的商业编译器 pass 顺序，而是把公开机制整理成一条便于阅读的教学路径：
+
+1. 从 framework model 或 tensor graph 开始；
+2. 分析 DAG、shape、dtype 和 producer-consumer dependency；
+3. 进行 operator rewrite 与 lowering；
+4. 选择 numerics 和 quantization 路径；
+5. 规划 tensor layout 与 SRAM；
+6. 分配 functional unit；
+7. 完成 time-space scheduling；
+8. 生成 instruction queue 内容并进行 VLIW packing；
+9. 生成 assembly、binary 和 constraint metadata；
+10. 由 host 加载并进入 deterministic execution。
 
 ### DAG 与依赖
 

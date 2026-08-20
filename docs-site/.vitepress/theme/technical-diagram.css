@@ -1,0 +1,272 @@
+.technical-diagram {
+  margin: 24px 0;
+}
+
+html.technical-diagram-dialog-open,
+html.technical-diagram-dialog-open body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+html.technical-diagram-dialog-open body {
+  position: fixed;
+  top: var(--technical-diagram-scroll-top, 0);
+  right: 0;
+  left: var(--technical-diagram-scroll-left, 0);
+  width: 100%;
+}
+
+.technical-diagram__trigger {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  cursor: zoom-in;
+}
+
+.technical-diagram__trigger:focus-visible {
+  outline: 3px solid var(--vp-c-brand-1);
+  outline-offset: 3px;
+}
+
+.technical-diagram__surface {
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  background: #fff;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+}
+
+.technical-diagram__inline-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0;
+  background: #fff;
+}
+
+.technical-diagram__zoom-mark {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  color: #1b1b1f;
+  background: rgb(255 255 255 / 92%);
+  border: 1px solid rgb(0 0 0 / 14%);
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.technical-diagram__zoom-mark svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.technical-diagram__trigger:hover .technical-diagram__zoom-mark {
+  box-shadow: 0 3px 12px rgb(0 0 0 / 18%);
+  transform: scale(1.04);
+}
+
+.technical-diagram__caption {
+  display: flex;
+  gap: 8px 16px;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 10px;
+  color: var(--vp-c-text-2);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.technical-diagram__caption > span {
+  min-width: 0;
+}
+
+.technical-diagram__description {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  white-space: nowrap;
+  clip-path: inset(50%);
+  border: 0;
+}
+
+.technical-diagram__raw-link {
+  flex: none;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.technical-diagram__dialog {
+  width: min(96vw, 1280px);
+  max-width: none;
+  height: min(92dvh, 960px);
+  max-height: none;
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  color: var(--vp-c-text-1);
+  background: var(--vp-c-bg);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  box-shadow: 0 20px 70px rgb(0 0 0 / 35%);
+}
+
+.technical-diagram__dialog[open] {
+  display: block;
+}
+
+.technical-diagram__dialog::backdrop {
+  background: rgb(0 0 0 / 62%);
+  backdrop-filter: blur(2px);
+}
+
+.technical-diagram__dialog-panel {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.technical-diagram__dialog-header {
+  display: flex;
+  flex: none;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 52px;
+  padding: 10px 12px 10px 18px;
+  background: var(--vp-c-bg);
+  border-bottom: 1px solid var(--vp-c-divider);
+}
+
+.technical-diagram__dialog-header p {
+  margin: 0;
+  overflow: hidden;
+  color: var(--vp-c-text-1);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.technical-diagram__close {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  padding: 0;
+  place-items: center;
+  color: var(--vp-c-text-1);
+  font-size: 25px;
+  line-height: 1;
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.technical-diagram__close:hover {
+  background: var(--vp-c-bg-mute);
+}
+
+.technical-diagram__close:focus-visible,
+.technical-diagram__viewport:focus-visible {
+  outline: 3px solid var(--vp-c-brand-1);
+  outline-offset: -3px;
+}
+
+.technical-diagram__viewport {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
+  background: #fff;
+  scrollbar-gutter: stable both-edges;
+  -webkit-overflow-scrolling: touch;
+}
+
+.technical-diagram__detail-image {
+  display: block;
+  width: max(100%, 896px);
+  max-width: none;
+  height: auto;
+  margin: 0;
+  background: #fff;
+}
+
+@media (max-width: 640px) {
+  .technical-diagram {
+    margin: 20px 0;
+  }
+
+  .technical-diagram__caption {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .technical-diagram__dialog {
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .technical-diagram__dialog-header {
+    padding-left: 14px;
+  }
+
+  .technical-diagram__detail-image {
+    width: max(100%, 896px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .technical-diagram__zoom-mark {
+    transition: none;
+  }
+}
+
+@media print {
+  .technical-diagram {
+    break-inside: avoid;
+    margin: 16px 0;
+  }
+
+  .technical-diagram__trigger {
+    cursor: default;
+  }
+
+  .technical-diagram__surface {
+    border-color: #bbb;
+  }
+
+  .technical-diagram__zoom-mark,
+  .technical-diagram__raw-link,
+  .technical-diagram__dialog {
+    display: none !important;
+  }
+
+  .technical-diagram__caption {
+    display: block;
+    color: #333;
+  }
+}

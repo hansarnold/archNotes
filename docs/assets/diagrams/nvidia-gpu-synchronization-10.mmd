@@ -1,7 +1,0 @@
-flowchart LR
-    POST["operation posted"] --> ORDER["ordered toward target"]
-    ORDER --> SRC["source-side completion"]
-    SRC --> DELIVER["destination-visible"]
-    DELIVER --> SIGNAL["remote notified"]
-    SIGNAL --> USE["remote consumer uses data"]
-    USE --> REUSE["buffers reusable"]

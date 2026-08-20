@@ -1,8 +1,0 @@
-flowchart TD
-    A["Framework model"] --> B["Compiler front-end and graph lowering"]
-    B --> C["Placement, memory planning and static scheduling"]
-    C --> D["Compiled program, weights and metadata"]
-    D --> E["Host runtime / device management"]
-    E --> F["PCIe or system transport"]
-    F --> G["LPU on-chip SRAM and functional slices"]
-    G --> H["C2C links and other LPUs"]

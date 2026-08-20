@@ -1,0 +1,24 @@
+{
+  "kind": "mental-model",
+  "claim": "input_ready opens Work but does not release A[k]; A[k], the Work gates, and empty(slot,g) converge on full(slot,g), while shared-stage and C[k] output ownership return through separate paths.",
+  "question": "Which partial-order proofs advance tile k, and which distinct receipts return shared-stage ownership versus C[k] output ownership?",
+  "audience": "CUDA developers reasoning about end-to-end tile handoff correctness, progress, and generation-safe reuse",
+  "scope": "One canonical lifecycle for global input A[k], whose source remains held beyond input_ready until matching copy completion and the last input user; work admission through issue; generation-scoped shared stage S[slot,g]; consumer output C[k]; task completion; and output lifetime through reuse by another tile or allocation. It abstracts over primitive-specific receipts and does not claim a total timeline.",
+  "readingOrder": "Treat A[k], WORK, and empty(slot,g) as independent incoming prerequisites to full(slot,g); input_ready opens the Work path but does not return A[k] source storage, whose reuse requires matching copy completion and the last input user. Continue through Consume S, then follow the lower branch to empty(slot,g+1) for shared-stage reuse and the upper branch through K_done and last_user_done until C[k] storage is reusable by another tile or allocation; neither ownership return implies the other.",
+  "evidence": [
+    "docs/notes/nvidia-gpu-synchronization.md"
+  ],
+  "localeScope": "zh-only",
+  "presentation": "zoom",
+  "scorecard": {
+    "necessity": 20,
+    "technicalCorrectness": 25,
+    "readability": 17,
+    "hierarchy": 14,
+    "terminology": 10,
+    "accessibility": 5,
+    "maintainability": 5,
+    "total": 96
+  },
+  "outcome": "pass"
+}

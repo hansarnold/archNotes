@@ -20,7 +20,7 @@ CUDA Core 只是 SM 内一类 scalar execution lane，不是完整 core。合理
 
 两者也不是 pin-to-pin 替代品。GPU 同时服务 graphics、HPC、irregular parallelism 和 AI；Tensix 更集中地面向 tiled tensor dataflow。因此“减法”只在指定 workload 和软件契约下成立。
 
-![GPU SM and Tensix core responsibility comparison](../assets/diagrams/tenstorrent-rethinking-gpu-sm-01.svg)
+![两列按 Scheduling、Compute state、Memory ownership、Movement 和 Backpressure 对齐：GPU SM 由硬件维护 resident warp state、动态选取 ready work 并结合 cache 与 scoreboard；Tensix 由 compiler、Reader Compute Writer kernel、local SRAM circular buffer 与 NoC 显式承担更多责任](../assets/diagrams/tenstorrent-rethinking-gpu-sm-01.svg "GPU SM 保留更多动态硬件责任，Tensix 则把 placement、data movement 与 buffering 更明确地交给软件可见 dataflow。")
 
 ## 2. 弱化 CUDA-style thread/warp 抽象
 

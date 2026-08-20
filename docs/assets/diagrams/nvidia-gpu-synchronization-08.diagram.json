@@ -1,0 +1,13 @@
+{
+  "kind": "sequence",
+  "claim": "Two physical stages overlap producer fill with consumer use, while empty(0,g+1) prevents Stage 0 from carrying tile k+2 before tile k is released.",
+  "question": "How do full and empty receipts make a two-stage pipeline overlap without overwriting live data?",
+  "audience": "CUDA developers tuning bounded double-buffered pipelines",
+  "scope": "Stage 0 and Stage 1 while the consumer uses logical tile k at generation g, the producer fills k+1, and Stage 0 advances to generation g+1 for tile k+2; excludes exact latency and throughput",
+  "readingOrder": "Read top to bottom; the par block overlaps consume(k) with fill(k+1), and Stage 0 accepts tile k+2 only after empty(0,g+1)",
+  "evidence": ["docs/notes/nvidia-gpu-synchronization.md"],
+  "localeScope": "zh-only",
+  "presentation": "zoom",
+  "scorecard": {"necessity":19,"technicalCorrectness":25,"readability":17,"hierarchy":13,"terminology":9,"accessibility":5,"maintainability":5,"total":93},
+  "outcome": "pass"
+}

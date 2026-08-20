@@ -5,11 +5,15 @@
   "type": "module",
   "scripts": {
     "check:content": "node scripts/check-content.mjs",
-    "check": "npm run check:content",
-    "diagrams": "node scripts/render-diagrams.mjs --extract",
+    "check": "npm run check:content && npm run diagrams:lint && npm run test:diagrams && npm run diagrams:check",
+    "diagrams": "node scripts/render-diagrams.mjs",
+    "diagrams:extract": "node scripts/render-diagrams.mjs --extract",
     "diagrams:check": "node scripts/render-diagrams.mjs --check",
+    "diagrams:lint": "node scripts/lint-diagrams.mjs",
+    "diagrams:report": "node scripts/lint-diagrams.mjs --report",
+    "test:diagrams": "node --test tests/diagram-pipeline.test.mjs tests/technical-diagrams.test.mjs",
     "dev": "vitepress dev .",
-    "build": "npm run check:content && vitepress build . && node scripts/check-built-navigation.mjs && node scripts/prepare-sites-build.mjs && npm run test:sites",
+    "build": "npm run check && vitepress build . && node scripts/check-built-navigation.mjs && node scripts/prepare-sites-build.mjs && npm run test:sites",
     "preview": "vitepress preview .",
     "test:sites": "node --test tests/sites-worker.test.mjs"
   },
@@ -18,6 +22,10 @@
     "vue": "^3.5.41"
   },
   "devDependencies": {
-    "mermaid": "^11.16.1"
+    "@excalidraw/excalidraw": "0.18.1",
+    "esbuild": "0.25.12",
+    "mermaid": "11.16.1",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
   }
 }

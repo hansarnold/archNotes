@@ -1,0 +1,13 @@
+{
+  "kind": "flowchart",
+  "claim": "K_done can release downstream work, but buffer reuse must wait for the last downstream user.",
+  "question": "How does a task-completion receipt relate to storage lifetime?",
+  "audience": "CUDA developers using streams, events, and stream-ordered allocation",
+  "scope": "K_done fan-out to the active device, host, or communication branches that legally use C[k], their convergence at last_user_done, and output-buffer reuse",
+  "readingOrder": "Top to bottom; follow every active C[k] user branch opened after K_done, then require all such branches to converge at last_user_done before output storage returns",
+  "evidence": ["docs/notes/nvidia-gpu-synchronization.md"],
+  "localeScope": "zh-only",
+  "presentation": "zoom",
+  "scorecard": {"necessity":18,"technicalCorrectness":25,"readability":18,"hierarchy":14,"terminology":9,"accessibility":5,"maintainability":5,"total":94},
+  "outcome": "pass"
+}

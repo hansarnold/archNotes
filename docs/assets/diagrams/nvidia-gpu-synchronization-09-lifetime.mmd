@@ -1,0 +1,7 @@
+%%{init: {"flowchart": {"diagramPadding": 8, "nodeSpacing": 36, "rankSpacing": 30, "padding": 8}}}%%
+flowchart TD
+    E(("K_done<br/>receipt")) -->|"device edge"| K2["downstream task waits<br/>and consumes output"]
+    E -->|"host / API edge"| HOST["host or communication<br/>protocol uses output"]
+    K2 -->|"branch completes"| LAST["all active C[k] users complete<br/>last_user_done"]
+    HOST -->|"branch completes"| LAST
+    LAST --> FREE["freeAsync /<br/>pool reuse"]

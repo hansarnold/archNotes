@@ -1,0 +1,15 @@
+{
+  "kind": "comparison",
+  "claim": "A GPU SM keeps more dynamic scheduling and thread state in hardware, while Tensix shifts more placement, data movement, and buffering responsibility to software-visible dataflow mechanisms.",
+  "question": "Which responsibilities are implemented differently by an NVIDIA SM and a Tensix core?",
+  "audience": "GPU developers learning the Tensix execution contract",
+  "scope": "Responsibility comparison, not a throughput or feature-equivalence chart",
+  "readingOrder": "Compare the two columns row by row: scheduling, compute state, memory ownership, then movement and backpressure",
+  "evidence": [
+    "docs/notes/tenstorrent-rethinking-gpu-sm.md"
+  ],
+  "localeScope": "zh-only",
+  "presentation": "zoom",
+  "scorecard": {"necessity":19,"technicalCorrectness":24,"readability":18,"hierarchy":15,"terminology":10,"accessibility":5,"maintainability":4,"total":95},
+  "outcome": "pass"
+}

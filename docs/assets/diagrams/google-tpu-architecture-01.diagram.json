@@ -1,0 +1,13 @@
+{
+  "kind": "dataflow",
+  "claim": "Graph compilation and Pallas use different compiler paths that converge on the shared PJRT/libtpu runtime before TPU hardware execution.",
+  "question": "How do graph programs and custom kernels reach TPU hardware?",
+  "audience": "Readers learning the TPU compiler and runtime stack",
+  "scope": "StableHLO/XLA/GSPMD/PJRT and Pallas/Mosaic entry paths; no private backend or ISA detail",
+  "readingOrder": "Read the two compiler branches from top to bottom; both converge on the shared PJRT/libtpu runtime before TPU hardware",
+  "evidence": ["docs/notes/google-tpu-architecture.md"],
+  "localeScope": "zh-only",
+  "presentation": "zoom",
+  "scorecard": {"necessity":18,"technicalCorrectness":25,"readability":19,"hierarchy":14,"terminology":9,"accessibility":5,"maintainability":5,"total":95},
+  "outcome": "pass"
+}

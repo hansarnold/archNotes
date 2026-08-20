@@ -1,0 +1,13 @@
+{
+  "kind": "sequence",
+  "claim": "The mbarrier phase for S[slot,g] completes only after the software arrival and the TMA transfer repays its tracked transaction bytes; only then can the consumer acquire that generation.",
+  "question": "How does completion move from an elected TMA submitter through the async engine to a consumer?",
+  "audience": "CUDA developers learning TMA and mbarrier transaction accounting",
+  "scope": "One elected producer, one TMA transfer, mbarrier transaction completion, and one consumer; assumes the required source and proxy handoff described in the surrounding prose",
+  "readingOrder": "Read top to bottom from producer arrival, expected-byte registration, and the copy of tile k into S[slot,g], through transaction repayment and matching phase-g completion, to consumer acquire",
+  "evidence": ["docs/notes/nvidia-gpu-synchronization.md"],
+  "localeScope": "zh-only",
+  "presentation": "zoom",
+  "scorecard": {"necessity":19,"technicalCorrectness":25,"readability":17,"hierarchy":13,"terminology":9,"accessibility":5,"maintainability":5,"total":93},
+  "outcome": "pass"
+}

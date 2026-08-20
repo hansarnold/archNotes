@@ -1,0 +1,4 @@
+interface:
+  display_name: "Technical Diagram Governor"
+  short_description: "Route, author, and validate technical diagrams"
+  default_prompt: "Use $technical-diagram-governor to choose, create, and validate the right technical diagram for this document."

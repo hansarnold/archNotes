@@ -13,7 +13,7 @@ archNotes studies how model computation becomes hardware execution through a Com
 
 NVIDIA GPU, Groq LPU/TSP, Tenstorrent Tensix, and Google TPU are architecture case studies rather than the boundary of the curriculum.
 
-![Four execution models for moving a Tile through an AI accelerator](../assets/images/tile-execution-models.png)
+![Four aligned models: NVIDIA uses runtime and warp scheduling, Groq follows a compiler time-space plan, Tensix exchanges circular-buffer ownership across Reader Compute and Writer, and TPU advances an XLA-planned systolic wave](../assets/diagrams/tile-execution-models.svg "The four architectures use the same comparison axes but assign tile scheduling and movement to different mechanisms.")
 
 ## Six Learning Tracks
 

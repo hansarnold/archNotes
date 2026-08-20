@@ -380,7 +380,9 @@ PJRT/device runtime 负责：
 
 ## 6. 软件栈
 
-![6. 软件栈](../assets/diagrams/google-tpu-architecture-01.svg)
+点击图可打开原始 SVG，并在移动端缩放查看。
+
+[![Graph compilation 与 Pallas custom kernel 经不同 compiler path，汇入共享 PJRT/libtpu runtime 后进入 TPU hardware](../assets/diagrams/google-tpu-architecture-01.svg "Graph 与 Pallas lowering 分叉，但在共享 PJRT/libtpu runtime 前汇合。")](../assets/diagrams/google-tpu-architecture-01.svg)
 
 ### 6.1 StableHLO
 

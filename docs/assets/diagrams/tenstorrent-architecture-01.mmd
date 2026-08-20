@@ -1,7 +1,0 @@
-flowchart LR
-    D["Device DRAM / remote L1"] --> R["Reader kernel\nData-movement RISC-V"]
-    R --> CBI["Input circular buffers\nLocal SRAM"]
-    CBI --> C["Compute kernel\nUnpack → FPU/SFPU → Pack"]
-    C --> CBO["Output circular buffer\nLocal SRAM"]
-    CBO --> W["Writer kernel\nData-movement RISC-V"]
-    W --> O["Device DRAM / next core"]

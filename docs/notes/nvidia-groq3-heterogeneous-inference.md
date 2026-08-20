@@ -82,7 +82,7 @@ LP30 仍延续公开 Groq 架构中的功能模块：
 
 ### 2.1 端到端路径
 
-![2.1 端到端路径](../assets/diagrams/nvidia-groq3-heterogeneous-inference-01.svg)
+![请求由 NVIDIA Dynamo 分类和预留 GPU、LPX 与链路容量；Rubin GPU 完成 prefill 并将 KV 留在 HBM，decode attention 与 Groq 3 LPX 的 FFN 或 MoE 每个 token 往返交换 intermediate activation，随后 GPU 或 host 采样输出](../assets/diagrams/nvidia-groq3-heterogeneous-inference-01.svg "AFD 反复交换 GPU Attention 与 LPX FFN 的 activation，而不是把任意 CUDA kernel 搬到 LPU。")
 
 可以把一个 Transformer layer 的 decode 抽象成：
 

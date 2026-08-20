@@ -1,8 +1,0 @@
-flowchart LR
-    R["请求"] --> D["NVIDIA Dynamo\n分类、路由、容量编排"]
-    D --> P["Rubin GPU\nPrefill"]
-    P --> K["GPU HBM4\nKV cache"]
-    K --> A["Rubin GPU\nDecode Attention"]
-    A -->|"intermediate activation"| F["Groq 3 LPX\nFFN / MoE / pointwise"]
-    F -->|"intermediate activation"| A
-    A --> O["采样并输出 token"]

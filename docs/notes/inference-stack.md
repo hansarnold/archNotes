@@ -13,7 +13,7 @@ Groq 的公开资料对芯片和静态调度机制描述较多，对当前商业
 
 ## 1. 系统分层
 
-![1. 系统分层](../assets/diagrams/inference-stack-01.svg)
+![Framework model 先进入负责 lowering、layout、memory 和 static schedule 的 Compiler；Compiled program 再由 Host runtime 装载和启动，Device 按 schedule 执行，Scale-out 层另外负责 topology、C2C route、distributed address 与 collective](../assets/diagrams/inference-stack-01.svg "Compiler、Host runtime、Device execution 与 Scale-out coordination 是四个独立责任边界。")
 
 ### Framework/model 层
 

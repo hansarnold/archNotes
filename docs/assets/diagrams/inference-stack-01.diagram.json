@@ -1,0 +1,15 @@
+{
+  "kind": "architecture",
+  "claim": "Compilation, host runtime, device execution, and scale-out coordination are separate responsibility boundaries rather than one monolithic runtime.",
+  "question": "Which layer owns each decision between a model and multi-LPU execution?",
+  "audience": "Readers building a public-evidence mental model of the Groq inference stack",
+  "scope": "Framework through scale-out responsibilities; excludes undocumented commercial API details",
+  "readingOrder": "Read compile time from model to artifact, then cross the dashed deployment boundary and read host, device, and scale-out responsibilities left to right",
+  "evidence": [
+    "docs/notes/inference-stack.md"
+  ],
+  "localeScope": "zh-only",
+  "presentation": "zoom",
+  "scorecard": {"necessity":19,"technicalCorrectness":24,"readability":18,"hierarchy":14,"terminology":9,"accessibility":5,"maintainability":4,"total":93},
+  "outcome": "pass"
+}

@@ -184,7 +184,7 @@ TT-Metalium 示例通常使用 `32 × 32` element tile，matrix/vector engine �
 
 典型 operation 在每个 participating Tensix core 上运行三类协作 kernel：
 
-![4. TT-Metalium 的三 kernel 流水](../assets/diagrams/tenstorrent-architecture-01.svg)
+![Reader kernel 经 NoC 把 tile 填入 Input CB，Compute 等待 ready tile 后 unpack、计算并 pack 到 Output CB，Writer 再经 NoC 写出；每个 CB 的 empty slot 与 ready tile 状态决定何时转移和归还 ownership](../assets/diagrams/tenstorrent-architecture-01.svg "Reader、Compute 与 Writer 通过 local SRAM 中的 circular buffer ownership 交接形成重叠流水。")
 
 ### 4.1 Reader
 
@@ -277,7 +277,16 @@ Command queue 是异步提交与顺序管理机制；它不等于 GPU warp sched
 
 ## 7. 软件栈
 
-![7. 软件栈](../assets/diagrams/tenstorrent-architecture-02.svg)
+这套软件栈可以按“谁负责降低哪一层抽象”来阅读。前一层能接收模型，不等于所有 op、shape、dtype 和 training path 都已稳定：
+
+| 层级 | 责任与边界 |
+| --- | --- |
+| PyTorch / JAX / ONNX 等 model frontend | 提供模型与 tensor graph 入口；实际支持范围仍受 op、shape、dtype 和 training path 限制。 |
+| TT-Forge | 作为 MLIR-based end-to-end compiler stack 连接 model frontend 与 Tenstorrent lowering；当前官方标记为 public beta。 |
+| TT-MLIR | 用 `TTIR`、`TTNN`、`D2M`、`TTKernel` 和 `TTMetal` 等 dialect，将 logical op 逐层映射到 layout、device/core grid、memory space、kernel 与 runtime artifact。 |
+| TT-NN | 提供 Python/C++ neural-network op API 与库，是 model developer 与 low-level kernel 之间的主要中间层。 |
+| TT-Metalium | 提供 low-level SDK、runtime 和 kernel 接口，直接暴露 RISC-V device kernel、Tensix engine、L1/DRAM、circular buffer、NoC、core placement 与 mesh dispatch。 |
+| Device hardware | 由 Tensix core、SRAM、NoC、DRAM 和 mesh 承载最终的 kernel execution 与 data movement。 |
 
 ### 7.1 TT-Forge
 

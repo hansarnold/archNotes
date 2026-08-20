@@ -1,0 +1,16 @@
+{
+  "kind": "comparison",
+  "claim": "The four accelerators differ mainly in who schedules a tile and how the tile moves between memory and compute resources.",
+  "question": "How does one tile progress through each accelerator execution model?",
+  "audience": "Readers entering the cross-architecture learning path",
+  "scope": "One aligned overview of NVIDIA GPU, Groq TSP, Tenstorrent Tensix, and Google TPU; no microarchitectural detail",
+  "readingOrder": "Read the four small multiples left to right; within every card, read schedule owner, memory path, and compute destination from top to bottom",
+  "evidence": [
+    "docs/index.md",
+    "docs/en/index.md"
+  ],
+  "localeScope": "shared",
+  "presentation": "zoom",
+  "scorecard": {"necessity":20,"technicalCorrectness":24,"readability":18,"hierarchy":15,"terminology":9,"accessibility":5,"maintainability":4,"total":95},
+  "outcome": "pass"
+}

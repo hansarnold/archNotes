@@ -62,13 +62,12 @@ const diagramFromInline = (inlineToken) => {
   return {
     alt,
     caption,
-    rawHref: publicSource,
     source: publicSource,
   };
 };
 
-export const renderTechnicalDiagram = ({ alt, caption, rawHref, source }) => (
-  `<TechnicalDiagram src="${escapeAttribute(source)}" alt="${escapeAttribute(alt)}" caption="${escapeAttribute(caption)}" raw-href="${escapeAttribute(rawHref)}"></TechnicalDiagram>\n`
+export const renderTechnicalDiagram = ({ alt, caption, source }) => (
+  `<TechnicalDiagram src="${escapeAttribute(source)}" alt="${escapeAttribute(alt)}" caption="${escapeAttribute(caption)}"></TechnicalDiagram>\n`
 );
 
 export const configureTechnicalDiagrams = (markdown) => {

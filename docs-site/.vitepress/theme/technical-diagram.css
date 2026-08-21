@@ -106,12 +106,6 @@ html.technical-diagram-dialog-open body {
   border: 0;
 }
 
-.technical-diagram__raw-link {
-  flex: none;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
 .technical-diagram__dialog {
   width: min(96vw, 1280px);
   max-width: none;
@@ -260,7 +254,6 @@ html.technical-diagram-dialog-open body {
   }
 
   .technical-diagram__zoom-mark,
-  .technical-diagram__raw-link,
   .technical-diagram__dialog {
     display: none !important;
   }

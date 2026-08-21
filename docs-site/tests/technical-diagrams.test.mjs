@@ -84,7 +84,7 @@ test("replaces a standalone linked diagram with the Vue figure component", () =>
   assert.equal(output[0].type, "html_block");
   assert.match(output[0].content, /<TechnicalDiagram/);
   assert.match(output[0].content, /src="\/assets\/diagrams\/example\.svg"/);
-  assert.match(output[0].content, /raw-href="\/assets\/diagrams\/example\.svg"/);
+  assert.doesNotMatch(output[0].content, /raw-href=/);
   assert.doesNotMatch(output[0].content, /example\.com/);
   assert.match(output[0].content, /alt="A claim, not a heading"/);
   assert.match(output[0].content, /caption="A claim, not a heading"/);

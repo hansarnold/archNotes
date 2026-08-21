@@ -72,8 +72,6 @@ device global-memory input A[k]
 
 下图把 Host/Device、device memory system 与 SM execution 分开。它是 programmer-visible entity map，不是芯片 die topology，也不是精确时间轴。
 
-点击图可打开原始 SVG，并在移动端缩放查看。
-
 [![Host 向 CUDA stream 提交 kernel；Device 内 tile 从 global memory 经 async copy 进入 shared-memory stage，再经 Tensor operation、register accumulators 与 epilogue 形成 global-memory output](../assets/diagrams/nvidia-gpu-synchronization-physical-path.svg "一块 tile 在 CUDA 原生 execution、memory 与 pipeline 实体中的端到端路径；图不声明硬件队列或单元的精确物理位置。")](../assets/diagrams/nvidia-gpu-synchronization-physical-path.svg)
 
 图把 TMA path 放在 memory system 与 SM execution 的交界，只表示 elected producer 使用 TensorMap/参数提交 operation、async agent 在 global memory 与 on-SM shared memory 之间搬运数据；它不声称 TMA engine、L2 slice 或 memory partition 的精确位置。Host/Device、grid/block 和 GPU memory hierarchy 的公开边界见 [CUDA Programming Model](https://docs.nvidia.com/cuda/cuda-programming-guide/01-introduction/programming-model.html)，TMA 的公开路径见 [CUDA Advanced Kernel Programming](https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/advanced-kernel-programming.html)。
@@ -303,8 +301,6 @@ cp.async ...
 
 Hopper（compute capability 9.0+）的 Tensor Memory Accelerator 允许 elected thread 使用 TensorMap/参数提交 tensor copy，由 async agent 执行搬运。Shared-memory `cuda::barrier` / PTX `mbarrier` 可以同时跟踪 software arrivals 与 transaction-based asynchronous operations。
 
-点击图可打开原始 SVG，并在移动端缩放查看。
-
 [![Elected producer 为 barrier phase p 完成唯一 arrival、登记 expected transaction bytes 并提交 TMA；consumers 等待 parity 翻转后才读取 shared-memory Stage i](../assets/diagrams/nvidia-gpu-synchronization-06.svg "TMA instruction issue 只是提交；单 producer arrival 与 tracked transaction bytes 都完成后，barrier phase p 才翻转。")](../assets/diagrams/nvidia-gpu-synchronization-06.svg)
 
 假设 `Stage i` 已可供 producer 填充，下面以一笔 16 KiB global→shared copy 为例：
@@ -406,8 +402,6 @@ producer_acquire()
 
 以下取偶数 tile index `k = 2n`。Shared buffer 0 当前承载 tile `k`，buffer 1 承载 tile `k+1`；buffer 0 被 consumer release 后，下一轮才承载 tile `k+2`。
 
-点击图可打开原始 SVG，并在移动端缩放查看。
-
 [![Consumer 使用 Shared Stage 0 中的 tile k 时，producer 填充 Stage 1 的 tile k+1；只有 consumer_release 之后 Stage 0 才能再次 producer_acquire 并承载 tile k+2](../assets/diagrams/nvidia-gpu-synchronization-08.svg "Two-stage cuda::pipeline 通过 acquire、commit、wait 与 release 管理两个 shared-memory stages 的安全复用。")](../assets/diagrams/nvidia-gpu-synchronization-08.svg)
 
 可把节拍写成：
@@ -488,8 +482,6 @@ Epilogue 发出 global store 后，kernel 还可能有其他 tiles、blocks 或 
 ## 7. Kernel Completion、Event 与 Allocation Lifetime
 
 ### 7.1 从 device output 到 downstream operation
-
-点击图可打开原始 SVG，并在移动端缩放查看。
 
 [![Kernel K 写入 global-memory output 后，CUDA stream 或 event ordering 可以开放 device、Host 或 communication downstream operations；allocation 只能在所有合法 uses 之后 free 或复用](../assets/diagrams/nvidia-gpu-synchronization-09-lifetime.svg "Kernel/event completion 建立下游 ordering；allocation lifetime 仍必须覆盖每一位 downstream user。")](../assets/diagrams/nvidia-gpu-synchronization-09-lifetime.svg)
 

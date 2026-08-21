@@ -1,7 +1,30 @@
 import assert from "node:assert/strict";
-import { access } from "node:fs/promises";
+import { access, readFile, readdir } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import worker from "../worker/index.js";
+
+const siteRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const publishableExtensions = new Set([
+  ".avif",
+  ".gif",
+  ".jpeg",
+  ".jpg",
+  ".png",
+  ".svg",
+  ".webp",
+]);
+
+const listFiles = async (root, directory = root) => {
+  const files = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const target = path.join(directory, entry.name);
+    if (entry.isDirectory()) files.push(...await listFiles(root, target));
+    else if (entry.isFile()) files.push(path.relative(root, target));
+  }
+  return files;
+};
 
 test("serves existing static assets without a fallback", async () => {
   const calls = [];
@@ -81,4 +104,44 @@ test("emits the files required by Sites packaging", async () => {
   await access(new URL("../dist/client/index.html", import.meta.url));
   await access(new URL("../dist/server/index.js", import.meta.url));
   await access(new URL("../dist/.openai/hosting.json", import.meta.url));
+  await access(new URL("../dist/client/og.png", import.meta.url));
+});
+
+test("packages every technical diagram referenced by built pages", async () => {
+  const clientRoot = path.join(siteRoot, "dist", "client");
+  const sourceAssetsRoot = path.resolve(siteRoot, "..", "docs", "assets");
+  const publishedAssetsRoot = path.join(clientRoot, "assets");
+  const diagramRoot = path.join(publishedAssetsRoot, "diagrams");
+  const sourceAssets = (await listFiles(sourceAssetsRoot))
+    .filter((file) => publishableExtensions.has(path.extname(file).toLowerCase()));
+  const htmlFiles = (await listFiles(clientRoot)).filter((file) => file.endsWith(".html"));
+  const references = new Set();
+
+  assert.ok(sourceAssets.length > 0, "source content should contain publishable image assets");
+  for (const relativePath of sourceAssets) {
+    await access(path.join(publishedAssetsRoot, relativePath));
+  }
+
+  for (const relativePath of htmlFiles) {
+    const source = await readFile(path.join(clientRoot, relativePath), "utf8");
+    for (const match of source.matchAll(/["'](\/assets\/diagrams\/[^"'?#]+)(?:[?#][^"']*)?["']/g)) {
+      references.add(match[1]);
+    }
+  }
+
+  assert.ok(references.size > 0, "built pages should reference at least one technical diagram");
+  for (const reference of references) {
+    const decoded = decodeURIComponent(reference);
+    const relativePath = decoded.slice("/assets/diagrams/".length);
+    assert.ok(
+      relativePath.split("/").every((segment) => segment && segment !== "." && segment !== ".."),
+      `diagram reference must stay inside the published diagram directory: ${reference}`,
+    );
+    const target = path.resolve(diagramRoot, relativePath);
+    assert.ok(
+      target.startsWith(`${diagramRoot}${path.sep}`),
+      `diagram reference must resolve inside the published diagram directory: ${reference}`,
+    );
+    await access(target);
+  }
 });

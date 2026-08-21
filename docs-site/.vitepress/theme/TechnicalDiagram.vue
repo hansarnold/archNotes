@@ -10,7 +10,6 @@ import {
 const props = defineProps({
   alt: { type: String, required: true },
   caption: { type: String, required: true },
-  rawHref: { type: String, required: true },
   src: { type: String, required: true },
 });
 
@@ -28,18 +27,17 @@ let restoreFocusFrame = null;
 const labels = computed(() => {
   const chinese = String(lang.value || "").toLowerCase().startsWith("zh");
   return chinese
-    ? { close: "关闭图表", open: "查看大图", raw: "打开原始 SVG" }
-    : { close: "Close diagram", open: "View full-size diagram", raw: "Open raw SVG" };
+    ? { close: "关闭图表", open: "查看大图" }
+    : { close: "Close diagram", open: "View full-size diagram" };
 });
 
 const sourceUrl = computed(() => withBase(props.src));
-const rawUrl = computed(() => withBase(props.rawHref));
 const hasDistinctDescription = computed(() => props.alt.trim() !== props.caption.trim());
 
 const open = async () => {
   const element = dialog.value;
   if (!element || typeof element.showModal !== "function") {
-    window.location.assign(rawUrl.value);
+    window.location.assign(sourceUrl.value);
     return;
   }
 
@@ -109,7 +107,6 @@ onBeforeUnmount(() => {
 
     <figcaption :id="captionId" class="technical-diagram__caption">
       <span>{{ caption }}</span>
-      <a class="technical-diagram__raw-link" :href="rawUrl">{{ labels.raw }}</a>
     </figcaption>
     <span
       v-if="hasDistinctDescription"

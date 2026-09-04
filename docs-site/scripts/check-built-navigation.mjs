@@ -42,6 +42,14 @@ const pages = [
     file: "dist/client/en/topics.html",
     markers: ["VPSidebar", "VPDocAside", "Topic Matrix"],
   },
+  {
+    file: "dist/client/mlir/index.html",
+    markers: ["VPSidebar", "VPDocAside", "IR 与变换", "Backend 与硬件", "实践"],
+  },
+  {
+    file: "dist/client/en/mlir/index.html",
+    markers: ["VPSidebar", "VPDocAside", "IR and Transformation", "Backend and Hardware", "Practice"],
+  },
 ];
 
 const errors = [];

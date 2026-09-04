@@ -134,6 +134,70 @@ const englishSidebar = [
   },
 ];
 
+const mlirSidebar = [
+  {
+    text: "开始",
+    items: [item("mlir", "教程总览")],
+  },
+  {
+    text: "IR 与变换",
+    collapsed: false,
+    items: [
+      item("mlir/ir-foundations", "IR 核心结构与工具"),
+      item("mlir/dialects", "Dialect 与 Progressive Lowering"),
+      item("mlir/passes-rewrites", "Pass、Pattern 与 Rewrite"),
+      item("mlir/dialect-conversion", "Dialect Conversion"),
+    ],
+  },
+  {
+    text: "Backend 与硬件",
+    collapsed: false,
+    items: [
+      item("mlir/accelerator-mapping", "AI Accelerator 映射"),
+      item("mlir/gpu-nvvm-dpx", "GPU、NVVM 与 DPX"),
+    ],
+  },
+  {
+    text: "实践",
+    items: [
+      item("mlir/labs", "最小可复现实验"),
+      item("mlir/testing-study-plan", "测试、计划与结课项目"),
+    ],
+  },
+];
+
+const englishMlirSidebar = [
+  {
+    text: "Start",
+    items: [item("en/mlir", "Tutorial Overview")],
+  },
+  {
+    text: "IR and Transformation",
+    collapsed: false,
+    items: [
+      item("en/mlir/ir-foundations", "IR Foundations and Tools"),
+      item("en/mlir/dialects", "Dialects and Progressive Lowering"),
+      item("en/mlir/passes-rewrites", "Passes, Patterns, and Rewrites"),
+      item("en/mlir/dialect-conversion", "Dialect Conversion"),
+    ],
+  },
+  {
+    text: "Backend and Hardware",
+    collapsed: false,
+    items: [
+      item("en/mlir/accelerator-mapping", "AI Accelerator Mapping"),
+      item("en/mlir/gpu-nvvm-dpx", "GPU, NVVM, and DPX"),
+    ],
+  },
+  {
+    text: "Practice",
+    items: [
+      item("en/mlir/labs", "Minimal Reproducible Labs"),
+      item("en/mlir/testing-study-plan", "Testing, Study Plan, and Capstone"),
+    ],
+  },
+];
+
 const knownNotePaths = new Set(overviewSidebar.flatMap((entry) => entry.items || []).map((entry) => entry.link));
 const otherNotes = readdirSync(path.join(contentRoot, "notes"))
   .filter((name) => name.endsWith(".md"))
@@ -146,11 +210,12 @@ if (otherNotes.length) {
   overviewSidebar.splice(-1, 0, { text: "待归档", collapsed: true, items: otherNotes });
 }
 
-const sidebars = { "/": overviewSidebar };
+const sidebars = { "/mlir/": mlirSidebar, "/": overviewSidebar };
 
 const rootLocaleThemeConfig = {
   nav: [
     { text: "总览", link: "/", activeMatch: "^/(?:topics|notes/(?:learning-roadmap|ai-accelerator-architecture-comparison|inference-stack))?$" },
+    { text: "MLIR Backend", link: "/mlir/", activeMatch: "^/mlir/" },
     { text: "NVIDIA GPU", link: "/notes/nvidia-gpu-synchronization", activeMatch: "^/notes/nvidia" },
     { text: "Groq TSP", link: "/notes/architecture", activeMatch: "^/(?:notes/(?:architecture|instruction-flow|compiler|software-optimization|lpu-vs-gpu)|labs/static_scheduler)" },
     { text: "Tensix", link: "/notes/tenstorrent-architecture", activeMatch: "^/(?:notes/tenstorrent|labs/tensix_pipeline)" },
@@ -181,11 +246,12 @@ const rootLocaleThemeConfig = {
 const englishLocaleThemeConfig = {
   nav: [
     { text: "Overview", link: "/en/" },
+    { text: "MLIR Backend", link: "/en/mlir/", activeMatch: "^/en/mlir/" },
     { text: "Curriculum", link: "/en/curriculum" },
     { text: "Architecture", link: "/en/notes/ai-accelerator-architecture-comparison" },
     { text: "Glossary", link: "/en/glossary" },
   ],
-  sidebar: { "/en/": englishSidebar },
+  sidebar: { "/en/mlir/": englishMlirSidebar, "/en/": englishSidebar },
   outline: { level: [2, 3], label: "On this page" },
   docFooter: { prev: "Previous", next: "Next" },
   lastUpdated: { text: "Last updated" },

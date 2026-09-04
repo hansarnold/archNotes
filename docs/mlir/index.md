@@ -9,11 +9,22 @@ topics: ["编译器", "IR", "Lowering", "硬件映射", "性能验证"]
 
 # MLIR Backend 入门
 
-这套教程不按 API 字母表展开。它围绕一条可验证的主线组织：读懂 IR，运行和调试 Pass，建立 Dialect 与 Conversion contract，再把一个 MatMul 推进到 tile、buffer、DMA、engine schedule 和 target codegen。
+这套教程不按 API 字母表展开。它先用 Triton、IREE、StableHLO 和 TileLang 建立真实项目背景，再围绕一条可验证的主线组织：读懂 IR，运行和调试 Pass，建立 Dialect 与 Conversion contract，最后把一个 MatMul 推进到 tile、buffer、DMA、engine schedule 和 target codegen。
 
 ::: tip 学习结果
 完成后，你应该能白板讲清楚 AI Compiler pipeline，并能用本地 `llvm-project` 复现最小 lowering 实验。
 :::
+
+## 先从真实项目开始
+
+如果你现在还分不清 MLIR、Triton、TileLang、TVM 和 Runtime 各自处在哪一层，先读 [真实项目中的 MLIR](./real-world.md)。它会用一项 BPU INT8 MatMul 任务解释：
+
+- Triton 为什么确实是 MLIR-based compiler；
+- TileLang 为什么使用 TVM TIR，却仍适合作为 kernel scheduling 的对照；
+- IREE 的 `Flow → Stream → HAL` 为什么能帮助理解完整 accelerator compiler；
+- Operation、Dialect、Pass、Conversion 分别对应哪一种工程工作。
+
+读完这页，再进入 IR 结构，会更容易判断一个抽象正在解决什么问题。
 
 ## 一条主线
 
@@ -30,6 +41,7 @@ Model / Graph
 
 | 阶段 | 核心问题 | 实际产出 |
 | --- | --- | --- |
+| 真实场景 | MLIR 在真实 compiler stack 的什么位置？ | 画出项目与 BPU pipeline 对照图 |
 | IR 基础 | Operation、Region、Block、Value 如何组成程序？ | 能逐行拆解 MLIR |
 | Pass 与 Rewrite | 编译器如何安全修改 IR？ | 能定位 Pass 未生效 |
 | Dialect 与 Conversion | 如何定义抽象边界和合法性？ | MiniBPU target contract |

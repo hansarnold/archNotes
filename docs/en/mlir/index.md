@@ -9,11 +9,22 @@ topics: ["Compiler", "IR", "Lowering", "Hardware Mapping", "Performance Validati
 
 # MLIR Backend Primer
 
-This tutorial is organized around an end-to-end compiler path rather than an API inventory. You will learn to read IR, run and debug passes, define dialect and conversion contracts, and carry a MatMul toward tiles, buffers, DMA, engine schedules, and target code generation.
+This tutorial starts with real context from Triton, IREE, StableHLO, and TileLang, then follows an end-to-end compiler path rather than an API inventory. You will learn to read IR, debug passes, define dialect and conversion contracts, and carry a MatMul toward tiles, buffers, DMA, engine schedules, and target code generation.
 
 ::: tip Learning outcome
 After completing the tutorial, you should be able to explain an AI compiler pipeline on a whiteboard and reproduce a small lowering experiment with a local `llvm-project` checkout.
 :::
+
+## Begin with a real system map
+
+If the boundaries between MLIR, Triton, TileLang, TVM, and a runtime are still unclear, start with [MLIR in Real Projects](./real-world.md). An INT8 MatMul task for a BPU shows:
+
+- why Triton's compiler is genuinely MLIR-based;
+- why TileLang uses TVM TIR yet remains a useful scheduling comparison;
+- how IREE's `Flow → Stream → HAL` sequence describes more than kernel code generation;
+- which engineering jobs correspond to Operation, Dialect, Pass, and Conversion.
+
+Once that map is clear, the IR structures in later chapters have a concrete reason to exist.
 
 ## One continuous path
 
@@ -30,6 +41,7 @@ Model / Graph
 
 | Stage | Core question | Deliverable |
 | --- | --- | --- |
+| Real systems | Where does MLIR sit in a working compiler stack? | Map real projects onto a BPU pipeline |
 | IR foundations | How do Operation, Region, Block, and Value form a program? | Explain MLIR line by line |
 | Passes and rewrites | How does a compiler change IR safely? | Diagnose an inactive pass |
 | Dialects and conversion | How are abstraction and legality contracts defined? | Draft a MiniBPU target contract |

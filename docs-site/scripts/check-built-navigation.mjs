@@ -44,11 +44,11 @@ const pages = [
   },
   {
     file: "dist/client/mlir/index.html",
-    markers: ["VPSidebar", "VPDocAside", "IR 与变换", "Backend 与硬件", "实践"],
+    markers: ["VPSidebar", "VPDocAside", "真实项目中的 MLIR", "IR 与变换", "Backend 与硬件", "实践"],
   },
   {
     file: "dist/client/en/mlir/index.html",
-    markers: ["VPSidebar", "VPDocAside", "IR and Transformation", "Backend and Hardware", "Practice"],
+    markers: ["VPSidebar", "VPDocAside", "MLIR in Real Projects", "IR and Transformation", "Backend and Hardware", "Practice"],
   },
 ];
 

@@ -137,7 +137,7 @@ const englishSidebar = [
 const mlirSidebar = [
   {
     text: "开始",
-    items: [item("mlir", "教程总览")],
+    items: [item("mlir", "教程总览"), item("mlir/real-world", "真实项目中的 MLIR")],
   },
   {
     text: "IR 与变换",
@@ -169,7 +169,7 @@ const mlirSidebar = [
 const englishMlirSidebar = [
   {
     text: "Start",
-    items: [item("en/mlir", "Tutorial Overview")],
+    items: [item("en/mlir", "Tutorial Overview"), item("en/mlir/real-world", "MLIR in Real Projects")],
   },
   {
     text: "IR and Transformation",

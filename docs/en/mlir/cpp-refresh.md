@@ -1,5 +1,5 @@
 ---
-title: "C++ Refresh: Predict Before Running"
+title: "C++ Review A: Find Gaps and Repair"
 description: "Recover code reasoning through values, references, ownership, lifetime, copy/move, and container invalidation with executable examples and repairs."
 outline: deep
 products: ["C++", "LLVM", "MLIR"]
@@ -7,9 +7,11 @@ documentType: "Review and Practice"
 topics: ["Ownership", "Lifetime", "Move Semantics", "Containers", "Debugging"]
 ---
 
-# C++ Refresh: Predict Before Running
+# C++ Review A: Find Gaps and Repair
 
-Day 1 block 3, 120 minutes: diagnostic 10, concepts/predictions 40, executable observations 20, repairs 40, and explanation 10. Recover the ability to reason about behavior before consulting an answer.
+Day 1 block 3, 120 minutes: types/deduction 35, lifetime/move 35, diagnostics/repairs/explanation 50. This is for returning C++ developers; skip familiar explanations and use the time on uncertain rules.
+
+Start with [T01–T12: types and expressions](../cpp/types.md), especially auto, decltype, value categories, and initialization. Then review [L01–L12: lifetime and move](../cpp/lifetime.md). The three repairs below are an exit check, not the scope of C++ review. See the [complete 84-reminder index](../cpp/index.md).
 
 ## Ten-minute diagnostic
 
@@ -92,7 +94,7 @@ The example's move constructor accepts `Tracked&&`, which cannot bind a const rv
 The intentionally modified-but-unused copy in the first loop may produce a warning. That warning illustrates the mistake; it is not an execution failure.
 :::
 
-Prefer resource-owning members such as strings, vectors, and smart pointers so a class needs no custom destructor/copy/move machinery: the Rule of Zero. Study Rule of Five when directly managing resources. Full `noexcept`, elision, and perfect-forwarding details can follow after the basic binding rules are clear.
+Prefer resource-owning members such as strings, vectors, and smart pointers so a class needs no custom destructor/copy/move machinery: the Rule of Zero. Fill in the details with [special-member generation and Rule of Five](../cpp/classes.md#c02), [noexcept](../cpp/classes.md#c12), [copy elision / NRVO](../cpp/lifetime.md#l05), and [perfect forwarding](../cpp/templates.md#f05). Predict a concrete example before looking up the rule.
 
 ## Invalidation after container changes
 

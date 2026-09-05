@@ -53,6 +53,13 @@ const pages = [
 ];
 
 for (const locale of ["", "en/"]) {
+  for (const chapter of ["index", "types", "lifetime", "classes", "templates", "stl", "modern", "tooling"]) {
+    pages.push({
+      file: `dist/client/${locale}cpp/${chapter}.html`,
+      markers: ["VPSidebar", "VPDocAside", `/${locale}cpp/types`, `/${locale}cpp/tooling`,
+        ...(chapter === "index" ? ["84"] : ["<details", "<summary>"])],
+    });
+  }
   for (const chapter of ["bootcamp", "model-to-kernel", "cpp-refresh", "ir-reading", "mapping-lab", "cpp-labs", "real-world", "discussion"]) {
     pages.push({
       file: `dist/client/${locale}mlir/${chapter}.html`,
@@ -73,7 +80,15 @@ for (const page of pages) {
   for (const marker of page.markers) {
     if (!source.includes(marker)) errors.push(`${page.file}: missing rendered navigation marker ${marker}`);
   }
-  if (/\/mlir\//.test(page.file)) {
+  const reviewChapter = page.file.match(/\/cpp\/(types|lifetime|classes|templates|stl|modern|tooling)\.html$/)?.[1];
+  if (reviewChapter) {
+    const prefixes = { types: "t", lifetime: "l", classes: "c", templates: "f", stl: "s", modern: "m", tooling: "g" };
+    for (let number = 1; number <= 12; number++) {
+      const id = `${prefixes[reviewChapter]}${String(number).padStart(2, "0")}`;
+      if (source.split(`id="${id}"`).length !== 2) errors.push(`${page.file}: expected exactly one reminder anchor ${id}`);
+    }
+  }
+  if (/\/(?:mlir|cpp)\//.test(page.file)) {
     const pageUrl = new URL(page.file.replace("dist/client", ""), "https://course.invalid");
     for (const match of source.matchAll(/href="([^"]*#[^"]+)"/g)) {
       const targetUrl = new URL(match[1], pageUrl);

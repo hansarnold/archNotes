@@ -1,5 +1,5 @@
 ---
-title: "C++ 快速回温：先判断再运行"
+title: "C++ 复习 A：查漏与修错"
 description: "用值与引用、生命周期、RAII、Copy/Move 和容器失效练习恢复 C++ 代码推理能力，配套可运行程序和三个修错任务。"
 outline: deep
 products: ["C++", "LLVM", "MLIR"]
@@ -7,9 +7,11 @@ documentType: "复习与练习"
 topics: ["Ownership", "Lifetime", "Move Semantics", "Containers", "Debugging"]
 ---
 
-# C++ 快速回温：先判断再运行
+# C++ 复习 A：查漏与修错
 
-Day 1 单元 3，共 120 分钟：自测 10、概念与预测 40、运行观察 20、修错 40、复述 10。目标是找回对代码行为的判断，而不是记住所有语言规则。
+Day 1 单元 3，共 120 分钟：类型与推导 35、Lifetime/Move 35、自测与修错及复述 50。面向写过 C++ 的人；已熟悉的讲解可跳过，把时间用于不确定的规则。
+
+先查 [T01–T12：类型与表达式](../cpp/types.md)，特别是 auto、decltype、Value Category 与初始化；再查 [L01–L12：生命周期与 Move](../cpp/lifetime.md)。下面的三个修错任务是验收，不是 C++ 知识范围的上限。完整目录见 [84 条复习速查](../cpp/index.md)。
 
 ## 10 分钟自测
 
@@ -99,7 +101,7 @@ new owner: owned
 例子保留了一个“副本被修改后未使用”的 compiler warning，这正是第一个循环的提示。它不是运行失败。
 :::
 
-优先让 `string`、`vector`、智能指针等成员管理资源，这叫 **Rule of Zero**：类无需自己实现整套析构、Copy、Move。必须直接管理资源时，再学习 Rule of Five。`noexcept`、copy elision 和 perfect forwarding 的完整规则放到后续；这次先把参数绑定判断清楚。
+优先让 `string`、`vector`、智能指针等成员管理资源，这叫 **Rule of Zero**：类无需自己实现整套析构、Copy、Move。速查补全：[特殊成员生成与 Rule of Five](../cpp/classes.md#c02)、[noexcept](../cpp/classes.md#c12)、[Copy Elision / NRVO](../cpp/lifetime.md#l05)、[Perfect Forwarding](../cpp/templates.md#f05)。先判断一段代码，再查对应的细规则。
 
 ## 容器变化之后，引用是否还有效
 

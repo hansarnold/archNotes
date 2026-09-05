@@ -1,5 +1,5 @@
 ---
-title: "12 小时 AI Compiler + C++ 入门"
+title: "12 小时 AI Compiler 入门 + C++ 复习"
 description: "两天、12 小时，从同一个 MatMul 案例连接模型、IR、Kernel 与硬件，并通过 C++ 修错和微型 Pass 找回代码推理能力。"
 outline: deep
 products: ["MLIR", "C++", "AI Accelerator"]
@@ -7,11 +7,13 @@ documentType: "学习路线"
 topics: ["AI Compiler", "C++", "入门", "实践", "讨论"]
 ---
 
-# 12 小时 AI Compiler + C++ 入门
+# 12 小时 AI Compiler 入门 + C++ 复习
 
 适合已经接触 C++、Clang/GCC 或 GPU，但模型、IR、Kernel 和硬件还没有连起来的读者。两天后，你应该能用一个具体例子讨论 Compiler 决策，并自己读懂、修改和验证一小段 C++。
 
 **共 720 分钟：AI Compiler 480 分钟，C++ 240 分钟。每天 6 小时有效学习，休息另计。** 下面每段时间已包含阅读、练习和复述，不需要再叠加整篇延伸资料。
+
+**C++ 部分是复习，不是从零入门。** [C++ 复习速查](../cpp/index.md)提供 7 个专题、84 条易忘要点；这两天只优先处理你的薄弱项，完整资料留作读源码时的查询工具。先扫清单，再跳到规则、反例与自测，不必重复已熟悉的基础讲解。
 
 ## 从哪里开始
 
@@ -27,7 +29,7 @@ topics: ["AI Compiler", "C++", "入门", "实践", "讨论"]
 | --- | ---: | --- | --- |
 | [1. 执行全景](./model-to-kernel.md) | 60 | 模型表达式、Graph、IR、Kernel、Runtime；区分编译与执行 | 用自己的话解释一次调用；给每层写出输入和输出 |
 | [2. 一个算子到一个程序](./model-to-kernel.md#block-2) | 90 | MatMul shape、循环、Bias/ReLU、Fusion；运行 CPU 对照实验 | 数值相同；解释省掉的中间数据和模型假设 |
-| [3. C++ 回温 A](./cpp-refresh.md) | 120 | 值/引用、生命周期、RAII、容器失效、Copy/Move；预测与修错 | 修复三个小任务，并解释每个对象的所有者 |
+| [3. C++ 复习 A](./cpp-refresh.md) | 120 | 类型与推导 35、Lifetime/Move 35、预测与三个修错任务 50 | 解释 decltype、const Move、失效点，并修复三个任务 |
 | [4. 看懂一处 IR 变化](./ir-reading.md) | 90 | 逐行读 MLIR；区分 Canonicalization、CSE、Lowering | 标出定义与使用；解释变换为什么合法 |
 
 Day 1 的结束问题：**同一个计算为什么会有多种表示？C++ 代码里的对象生命周期与 IR 中 Value 的依赖有什么区别？**
@@ -37,7 +39,7 @@ Day 1 的结束问题：**同一个计算为什么会有多种表示？C++ 代�
 | 单元 | 分钟 | 内容与任务 | 完成证据 |
 | --- | ---: | --- | --- |
 | [5. Tile 怎样执行](./mapping-lab.md) | 90 | Layout、Buffer、SRAM、DMA、同步；改变一个 tile 参数 | 算出 working set；解释一个容量失败和一个可行方案 |
-| [6. C++ 回温 B](./cpp-labs.md) | 120 | 类、模板、Lambda、LLVM 类型；实现微型 Constant Folding Pass | 常量被折叠、变量路径保留；正例与边界测试通过 |
+| [6. C++ 复习 B](./cpp-labs.md) | 120 | 类/模板/LLVM 类型 30、STL/错误边界 25、微型 Pass 与验证 65 | 常量被折叠、变量路径保留；解释规则与边界测试 |
 | [7. 真实项目对照](./real-world.md) | 60 | Triton、TileLang、IREE、StableHLO 与 PyTorch 的职责 | 能解释各自位于哪一层，以及一项实际用途 |
 | [8. 性能与数值](./mapping-lab.md#单元-8-性能与数值-60-分钟) | 60 | FLOPs/Bytes、Roofline、INT8、shape 变化；运行分析脚本 | 分清下界、模型预测和实测；说明量化误差来源 |
 | [9. 讨论演练](./discussion.md) | 30 | 5 分钟案例讲解，随后回答条件变化的追问 | 给出理由、代价、验证方法和不知道的部分 |

@@ -27,7 +27,8 @@ archNotes 研究 Model Computation 怎样经过 Compiler、Runtime 和 Kernel �
 
 ## 选择阅读方式
 
-- **先用两天连接概念：** [12 小时 AI Compiler + C++ 入门](./mlir/bootcamp.md)，用 MatMul 串起模型、IR、Kernel 和硬件，配套 C++ 修错与微型 Pass；不要求 GPU。
+- **先用两天连接概念：** [12 小时 AI Compiler 入门 + C++ 复习](./mlir/bootcamp.md)，用 MatMul 串起模型、IR、Kernel 和硬件，配套 C++ 修错与微型 Pass；不要求 GPU。
+- **写过 C++，需要查漏：** [C++ 复习速查](./cpp/index.md)，7 个专题、84 条易忘要点，配短例子、边界提醒和自测。
 - **按六条主线：** 从[课程蓝图](./curriculum.md)进入 Model Computation and Workload、Model-to-Hardware Mapping、Hardware Architecture、Software Optimization、Model–Hardware Co-design 和 Performance Modeling and Validation。
 - **按学习顺序：** 从[学习路线](./notes/learning-roadmap.md)开始，逐步进入架构、机制、软件栈和系统扩展。
 - **按架构对象：** 在“架构专论”中分别阅读 NVIDIA GPU、Groq TSP、Tenstorrent Tensix 和 Google TPU。

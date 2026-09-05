@@ -18,9 +18,35 @@ topics: ["真实项目", "Compiler Pipeline", "Kernel DSL", "BPU Backend", "Lowe
 - **TileLang 当前不是 MLIR 项目。** 官方文档说明它的 kernel 是 TVM 的 TIR function。它仍然很值得对照学习，因为它解决的也是 tile、memory、pipeline 和硬件映射问题。
 :::
 
+## 12 小时路线：本页只用 60 分钟
+
+这是 [入门路线](./bootcamp.md)单元 7。先用 20 分钟读下面的三个场景与项目表，20 分钟对照官方 MatMul 示例，再用 20 分钟填写自己的职责表。后半页 BPU 工程拆解与 IR Dump 实验是延伸阅读，不要求这次安装 Triton 或运行 GPU。
+
+### 场景 A：我有 PyTorch 模型，希望它运行得更快
+
+你可能从 `torch.compile(model)` 开始。它不是让整个 Python 程序直接进入 MLIR：Dynamo 负责捕获可编译的 Graph，后端再选择实现；默认后端 Inductor 可以生成 Triton GPU Kernel，也有 CPU C++ 路径，并可能调用 Library。Graph Break、不同后端和版本会改变具体路线。**“PyTorch 使用 Triton”不等于“所有 PyTorch 都经过 Torch-MLIR 或 Linalg”。** 见 [PyTorch Compiler 官方介绍](https://docs.pytorch.org/docs/stable/user_guide/torch_compiler/torch.compiler.html)。
+
+### 场景 B：模型中的一个 MatMul/Softmax Kernel 是瓶颈
+
+此时你可以研究 Triton 或 TileLang，直接控制分块和数据搬运。这比改模型 Graph 更低一层，也不等于必须亲自写整个 Compiler。Triton 使用 MLIR 实现其 Compiler；TileLang 选择 TVM TIR。两者的基础设施不同，但你刚算过的容量、复用与同步问题仍然适用。
+
+打开 [Triton MatMul tutorial](https://triton-lang.org/main/getting-started/tutorials/03-matrix-multiplication.html)，只查四类位置：`tl.program_id` 怎样确定工作分配，`tl.load` 怎样读取一个块，`tl.dot` 怎样累加，`tl.store` 的 Mask 怎样保护边界。不要尝试在 20 分钟内理解所有 Autotune 配置。然后去 [TileLang language basics](https://github.com/tile-ai/tilelang/blob/main/docs/programming_guides/language_basics.md)找 `T.prim_func` 与 Buffer/Memory Scope，对照哪些决策在用户代码中可见。
+
+### 场景 C：我需要把完整模型部署到另一类设备
+
+只得到一个快 Kernel 还不够：还需要组织 Dispatch、资源与异步依赖，并与设备接口对接。IREE 展示这类端到端系统，内部使用多种 MLIR Dialect；StableHLO 则主要是 framework 与 compiler 之间的可移植算子协议，不是独立的 Runtime。见 [IREE 开发者总览](https://iree.dev/developers/general/developer-overview/)与 [StableHLO 项目说明](https://github.com/openxla/stablehlo)。
+
+| 如果你的问题是 | 先观察哪一层 | 本次要说清的一句话 |
+| --- | --- | --- |
+| 一串模型操作能否融合 | Graph Compiler，如 Inductor | Kernel 的边界是谁决定的？ |
+| 一个 Tile 如何分给线程或放入 Buffer | Kernel DSL 与对应 Compiler，如 Triton/TileLang | 哪些决策由作者显式给出？ |
+| 编译产物如何加载、提交与同步 | Model Compiler + Runtime，如 IREE | 有了设备代码后还缺什么？ |
+
+完成后回到 [性能与数值单元](./mapping-lab.md#单元-8-性能与数值-60-分钟)。下面保留更深入的 Backend 背景。
+
 ## 从一个 BPU MatMul 看懂多层 IR
 
-假设你要给一块 BPU 支持 INT8 MatMul。用户只写了矩阵乘法，但 backend 必须回答完全不同层次的问题：
+假设你要给一块 BPU 支持 INT8 MatMul。下面是**教学用的一种可能分层**，不是 Triton、TileLang、IREE 的共同 Pipeline，也不描述某款 BPU 的私有实现。用户只写了矩阵乘法，但 backend 必须回答完全不同层次的问题：
 
 ```text
 PyTorch / JAX model          用户要算什么？

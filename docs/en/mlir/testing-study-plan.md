@@ -1,6 +1,6 @@
 ---
 title: "MLIR Testing, Study Plan, and Capstone"
-description: "Validate a compiler with parse and verify checks, FileCheck, code generation, and end-to-end evidence, then complete a MiniBPU compiler slice on a two-day or three-week route."
+description: "An engineering reference after the twelve-hour primer: validate a MiniBPU compiler slice with parse/verify, FileCheck, code generation, and end-to-end evidence."
 outline: deep
 products: ["MLIR", "AI Accelerator"]
 documentType: "Study Plan"
@@ -64,23 +64,11 @@ IR Pattern
 
 Any link can fail. The instruction may appear while resource pressure rises; a faster kernel may be offset by layout copies; a simulator may not yet be calibrated against silicon.
 
-## Two-Day Interview Sprint
+## Two-day introduction: use the new twelve-hour route
 
-### Day 1: IR and Backend Pipeline
+The previous sprint compressed IR, conversion, hardware mapping, and target engineering without enough context or C++ practice. Start with the [12-hour AI Compiler + C++ primer](./bootcamp.md): eight hours of concepts and observations, plus four of C++ prediction, repairs, and a miniature pass. Its outcome is example-based discussion with verification methods.
 
-- [ ] Read the overview, IR, dialect, and dialect-conversion chapters.
-- [ ] Complete Labs 1–3.
-- [ ] Draw the AI compiler pipeline on a whiteboard.
-- [ ] Describe legality, tiling, layout, memory, DMA, and scheduling for MatMul.
-- [ ] Work through one roofline estimate by hand.
-
-### Day 2: Target and Validation
-
-- [ ] Read the pass, accelerator-mapping, and GPU/NVVM/DPX chapters.
-- [ ] Complete Labs 4–5.
-- [ ] Design a semantics table for three MiniBPU operations.
-- [ ] Write one positive test and two negative tests.
-- [ ] Record a 20-minute explanation.
+FileCheck, custom operations, and the MiniBPU capstone remain advanced material, outside the introductory 720 minutes.
 
 ## Three-Week Engineering Route
 

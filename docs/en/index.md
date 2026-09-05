@@ -17,6 +17,8 @@ NVIDIA GPU, Groq LPU/TSP, Tenstorrent Tensix, and Google TPU are architecture ca
 
 ## Six Learning Tracks
 
+For a short starting route, take the [12-hour AI Compiler + C++ primer](./mlir/bootcamp.md): one MatMul connects models, IR, kernels, and hardware, with CPU-only C++ repairs and a miniature pass.
+
 | Track | Entry | Primary question |
 | --- | --- | --- |
 | Model Computation and Workload | [Model Computation Primitives and Workload Description](./notes/model-computation-primitives.md) | What computation, data, state, and Communication does the model create? |

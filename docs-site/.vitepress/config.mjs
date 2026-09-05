@@ -28,7 +28,7 @@ const learningTracks = [
 const learningTrackItems = (prefix = "") => learningTracks.map(([relativePath, title]) => item(`${prefix}${relativePath}`, title));
 
 const overviewSidebar = [
-  { text: "开始", items: [item("", "总览"), item("curriculum", "课程蓝图"), item("topics", "主题矩阵"), item("notes/learning-roadmap", "学习路线")] },
+  { text: "开始", items: [item("", "总览"), item("mlir/bootcamp", "12 小时 AI Compiler + C++"), item("curriculum", "课程蓝图"), item("topics", "主题矩阵"), item("notes/learning-roadmap", "学习路线")] },
   {
     text: "全栈主干",
     collapsed: false,
@@ -78,6 +78,7 @@ const englishSidebar = [
     text: "Start",
     items: [
       item("en", "Overview"),
+      item("en/mlir/bootcamp", "12-Hour AI Compiler + C++"),
       item("en/curriculum", "Curriculum"),
       item("en/topics", "Topic Matrix"),
       item("en/notes/learning-roadmap", "Learning Roadmap"),
@@ -137,7 +138,20 @@ const englishSidebar = [
 const mlirSidebar = [
   {
     text: "开始",
-    items: [item("mlir", "教程总览"), item("mlir/real-world", "真实项目中的 MLIR")],
+    items: [item("mlir/bootcamp", "12 小时入门路线"), item("mlir", "MLIR 教程总览"), item("mlir/real-world", "真实项目中的 MLIR")],
+  },
+  {
+    text: "12 小时动手入门",
+    collapsed: false,
+    items: [
+      item("mlir/model-to-kernel", "1–2. 模型到 Kernel"),
+      item("mlir/cpp-refresh", "3. C++ 回温 A"),
+      item("mlir/ir-reading", "4. 读懂 IR 变化"),
+      item("mlir/mapping-lab", "5 / 8. Tile、性能与数值"),
+      item("mlir/cpp-labs", "6. C++ 回温 B：微型 Pass"),
+      item("mlir/real-world", "7. 真实项目对照"),
+      item("mlir/discussion", "9. 讨论演练与验收"),
+    ],
   },
   {
     text: "IR 与变换",
@@ -169,7 +183,20 @@ const mlirSidebar = [
 const englishMlirSidebar = [
   {
     text: "Start",
-    items: [item("en/mlir", "Tutorial Overview"), item("en/mlir/real-world", "MLIR in Real Projects")],
+    items: [item("en/mlir/bootcamp", "12-Hour Learning Route"), item("en/mlir", "MLIR Tutorial Overview"), item("en/mlir/real-world", "MLIR in Real Projects")],
+  },
+  {
+    text: "12-Hour Hands-on Primer",
+    collapsed: false,
+    items: [
+      item("en/mlir/model-to-kernel", "1–2. Model to Kernel"),
+      item("en/mlir/cpp-refresh", "3. C++ Refresh A"),
+      item("en/mlir/ir-reading", "4. Read an IR Change"),
+      item("en/mlir/mapping-lab", "5 / 8. Tiles, Performance, Numerics"),
+      item("en/mlir/cpp-labs", "6. C++ Refresh B: Miniature Pass"),
+      item("en/mlir/real-world", "7. Compare Real Projects"),
+      item("en/mlir/discussion", "9. Discussion and Exit Check"),
+    ],
   },
   {
     text: "IR and Transformation",
@@ -215,7 +242,7 @@ const sidebars = { "/mlir/": mlirSidebar, "/": overviewSidebar };
 const rootLocaleThemeConfig = {
   nav: [
     { text: "总览", link: "/", activeMatch: "^/(?:topics|notes/(?:learning-roadmap|ai-accelerator-architecture-comparison|inference-stack))?$" },
-    { text: "MLIR Backend", link: "/mlir/", activeMatch: "^/mlir/" },
+    { text: "AI Compiler", link: "/mlir/bootcamp", activeMatch: "^/mlir/" },
     { text: "NVIDIA GPU", link: "/notes/nvidia-gpu-synchronization", activeMatch: "^/notes/nvidia" },
     { text: "Groq TSP", link: "/notes/architecture", activeMatch: "^/(?:notes/(?:architecture|instruction-flow|compiler|software-optimization|lpu-vs-gpu)|labs/static_scheduler)" },
     { text: "Tensix", link: "/notes/tenstorrent-architecture", activeMatch: "^/(?:notes/tenstorrent|labs/tensix_pipeline)" },
@@ -246,7 +273,7 @@ const rootLocaleThemeConfig = {
 const englishLocaleThemeConfig = {
   nav: [
     { text: "Overview", link: "/en/" },
-    { text: "MLIR Backend", link: "/en/mlir/", activeMatch: "^/en/mlir/" },
+    { text: "AI Compiler", link: "/en/mlir/bootcamp", activeMatch: "^/en/mlir/" },
     { text: "Curriculum", link: "/en/curriculum" },
     { text: "Architecture", link: "/en/notes/ai-accelerator-architecture-comparison" },
     { text: "Glossary", link: "/en/glossary" },

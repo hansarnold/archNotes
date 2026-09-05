@@ -9,6 +9,8 @@ topics: ["Compiler", "IR", "Lowering", "Hardware Mapping", "Performance Validati
 
 # MLIR Backend Primer
 
+**New here? Start with the [12-hour AI Compiler + C++ primer](./bootcamp.md).** One MatMul connects the concepts through annotated code, CPU labs, C++ repairs, and discussion checks. The chapters below are deeper MLIR references, not mandatory sequential reading for the first two days.
+
 This tutorial starts with real context from Triton, IREE, StableHLO, and TileLang, then follows an end-to-end compiler path rather than an API inventory. You will learn to read IR, debug passes, define dialect and conversion contracts, and carry a MatMul toward tiles, buffers, DMA, engine schedules, and target code generation.
 
 ::: tip Learning outcome
@@ -50,7 +52,7 @@ Model / Graph
 
 ## Two study modes
 
-- **Two-day sprint:** Focus on IR, progressive lowering, dialect conversion, and MatMul mapping for interview readiness.
+- **Two-day introduction:** Follow the [12-hour route](./bootcamp.md) for a discussable overview and C++/CPU exercises; postpone ODS, full conversion, and real-target code generation.
 - **Three-week engineering track:** Add ODS, PatternRewriter, tests, and a MiniBPU capstone that demonstrates a complete compiler slice.
 
 ## Scope

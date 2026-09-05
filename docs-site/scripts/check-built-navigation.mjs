@@ -52,6 +52,16 @@ const pages = [
   },
 ];
 
+for (const locale of ["", "en/"]) {
+  for (const chapter of ["bootcamp", "model-to-kernel", "cpp-refresh", "ir-reading", "mapping-lab", "cpp-labs", "real-world", "discussion"]) {
+    pages.push({
+      file: `dist/client/${locale}mlir/${chapter}.html`,
+      markers: ["VPSidebar", "VPDocAside", `/${locale}mlir/bootcamp`, `/${locale}mlir/cpp-labs`, `/${locale}mlir/discussion`,
+        ...(["cpp-refresh", "cpp-labs", "mapping-lab", "discussion"].includes(chapter) ? ["<details", "<summary>"] : [])],
+    });
+  }
+}
+
 const errors = [];
 for (const page of pages) {
   const target = path.join(siteRoot, page.file);
@@ -62,6 +72,25 @@ for (const page of pages) {
   const source = readFileSync(target, "utf8");
   for (const marker of page.markers) {
     if (!source.includes(marker)) errors.push(`${page.file}: missing rendered navigation marker ${marker}`);
+  }
+  if (/\/mlir\//.test(page.file)) {
+    const pageUrl = new URL(page.file.replace("dist/client", ""), "https://course.invalid");
+    for (const match of source.matchAll(/href="([^"]*#[^"]+)"/g)) {
+      const targetUrl = new URL(match[1], pageUrl);
+      if (targetUrl.origin !== pageUrl.origin || !targetUrl.hash) continue;
+      const pathname = decodeURIComponent(targetUrl.pathname);
+      const relativeFile = pathname.endsWith("/") ? `${pathname}index.html`
+        : pathname.endsWith(".html") ? pathname : `${pathname}.html`;
+      const target = path.join(siteRoot, "dist/client", relativeFile);
+      if (!existsSync(target)) {
+        errors.push(`${page.file}: anchor target does not exist: ${match[1]}`);
+        continue;
+      }
+      const id = decodeURIComponent(targetUrl.hash.slice(1));
+      if (!readFileSync(target, "utf8").includes(`id="${id}"`)) {
+        errors.push(`${page.file}: anchor is missing: ${match[1]}`);
+      }
+    }
   }
 }
 

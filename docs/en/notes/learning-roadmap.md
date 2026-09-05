@@ -13,6 +13,8 @@ This roadmap gives a reading sequence. The [Curriculum](../curriculum.md) owns t
 
 ## Choose a Direction
 
+**Only two days available?** Start with the [12-hour AI Compiler + C++ route](../mlir/bootcamp.md), explaining one MatMul and completing repair, IR, and tile exercises. The multi-architecture material below is subsequent reference, not additional required reading for those two days.
+
 - **Model downward:** Model Computation and Workload → graph and IR → Compiler, Runtime, and Kernel → Hardware Mapping → Performance Validation.
 - **Hardware upward:** compute, memory, and interconnect → programming contract → Software Optimization → Model–Hardware Co-design.
 - **End-to-end case:** use one Transformer block to connect both directions with one vocabulary.

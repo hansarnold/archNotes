@@ -1,6 +1,6 @@
 ---
 title: "MLIR 测试、学习计划与结课项目"
-description: "用 Parse/Verify、FileCheck、Codegen 与 End-to-end evidence 验证编译器，并按两天或三周路线完成 MiniBPU Compiler Slice。"
+description: "12 小时入门后的进阶参考：用 Parse/Verify、FileCheck、Codegen 与 End-to-end evidence 验证 MiniBPU Compiler Slice。"
 outline: deep
 products: ["MLIR", "AI Accelerator"]
 documentType: "学习计划"
@@ -63,23 +63,11 @@ IR Pattern
 
 每一级都可能失败：Instruction 出现但 Resource pressure 上升；Kernel 变快但 Layout copy 抵消收益；Simulator 未经过 Silicon calibration。
 
-## 两天面试冲刺
+## 两天入门：使用新的 12 小时路线
 
-### Day 1：IR 与 Backend Pipeline
+旧版把 IR、Conversion、硬件映射和 Target 工程同时压进两天，缺少背景和 C++ 动手铺垫。现在统一从 [12 小时 AI Compiler + C++ 入门](./bootcamp.md)开始：8 小时概念与观察实验，4 小时 C++ 预测、修错和微型 Pass。完成标准是能用例子参与讨论并给出验证方法。
 
-- [ ] 阅读教程总览、IR、Dialect 与 Dialect Conversion。
-- [ ] 完成 Lab 1–3。
-- [ ] 白板画 AI Compiler Pipeline。
-- [ ] 对 MatMul 写出 Legality、Tiling、Layout、Memory、DMA 和 Schedule。
-- [ ] 手算一题 Roofline。
-
-### Day 2：Target 与验证
-
-- [ ] 阅读 Pass、Accelerator Mapping、GPU/NVVM/DPX。
-- [ ] 完成 Lab 4–5。
-- [ ] 设计三个 MiniBPU Operation 的 Semantics table。
-- [ ] 写一个正例和两个 Negative test。
-- [ ] 做一次 20 分钟录音讲解。
+本页的 FileCheck、自定义 Operation 和 MiniBPU 项目保留为进阶内容，不计入入门的 720 分钟。
 
 ## 三周工程路线
 

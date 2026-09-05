@@ -27,6 +27,8 @@ ISA、计算单元、Memory、NoC、Interconnect
 
 ## 一、统一学习结果
 
+如果目前“知道术语但连不起来”，先完成 [12 小时 AI Compiler + C++ 入门](./mlir/bootcamp.md)。它是下列长期课程的入门层：8 小时建立计算与映射概念，4 小时恢复 C++ 阅读和修改能力，不要求两天完成生产级 Backend。
+
 完成六条主线后，读者应能够对一个 MatMul、Attention、MoE layer 或完整 Transformer block 完成以下工作：
 
 1. 写出 operation、tensor shape、依赖、状态和数值格式；

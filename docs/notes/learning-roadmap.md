@@ -13,6 +13,8 @@ topics: ["学习路径", "研究方法"]
 
 ## 选择学习方向
 
+**只有两天时：** 走 [12 小时 AI Compiler + C++ 路线](../mlir/bootcamp.md)，先把同一个 MatMul 讲清楚，并完成修错、IR 观察和 Tile 实验。下面的多架构路线是后续参考，不是这两天的额外必读。
+
 - **模型向下：** 模型计算与状态 → graph/IR → compiler/runtime/kernel → hardware mapping → performance validation。
 - **硬件向上：** compute/memory/interconnect → programming contract → software optimization → model/hardware co-design。
 - **贯穿案例：** 用同一个 Transformer block 闭合两条路线，而不是分别学习两套术语。

@@ -18,9 +18,35 @@ Use this mental model first: **MLIR is neither a complete AI compiler nor one fi
 - **TileLang is not currently an MLIR project.** Its documentation defines kernels as TVM TIR functions. It remains an excellent comparison because it exposes the same tiling, memory, pipeline, and hardware-mapping decisions.
 :::
 
+## Twelve-hour route: spend 60 minutes here
+
+This is Block 7 of the [primer](./bootcamp.md). Spend 20 minutes on the three scenarios and project table, 20 comparing official MatMul examples, and 20 writing your own responsibility table. The later BPU engineering breakdown and IR dump exercise are optional; installing Triton or running a GPU is not required.
+
+### Scenario A: accelerate an existing PyTorch model
+
+You might start with `torch.compile(model)`. This does not send every Python program directly into MLIR. Dynamo captures compilable graphs; a backend selects implementations. The default Inductor backend can generate Triton GPU kernels, also has a CPU C++ path, and can call libraries. Graph breaks, backends, and versions change the route. **PyTorch using Triton does not mean all PyTorch programs go through Torch-MLIR or linalg.** See the [official PyTorch compiler overview](https://docs.pytorch.org/docs/stable/user_guide/torch_compiler/torch.compiler.html).
+
+### Scenario B: a MatMul or softmax kernel is the bottleneck
+
+Study Triton or TileLang to control blocking and data movement below the model-graph level, without building an entire compiler yourself. Triton uses MLIR; TileLang uses TVM TIR. Capacity, reuse, and synchronization still matter despite the different infrastructure.
+
+Open the [Triton MatMul tutorial](https://triton-lang.org/main/getting-started/tutorials/03-matrix-multiplication.html). Locate just four things: work assignment through `tl.program_id`, block reads through `tl.load`, accumulation through `tl.dot`, and boundary masks on `tl.store`. Do not attempt every autotuning configuration in twenty minutes. Then locate `T.prim_func` and buffer/memory scopes in [TileLang language basics](https://github.com/tile-ai/tilelang/blob/main/docs/programming_guides/language_basics.md), comparing decisions visible in user code.
+
+### Scenario C: deploy a whole model to another device class
+
+A fast kernel alone does not organize dispatches, resources, asynchronous dependencies, or device interfaces. IREE illustrates such an end-to-end system using multiple MLIR dialects. StableHLO principally provides a portable framework/compiler operator contract, not an independent runtime. See the [IREE developer overview](https://iree.dev/developers/general/developer-overview/) and [StableHLO project](https://github.com/openxla/stablehlo).
+
+| Your question | Start observing | Explain this boundary |
+| --- | --- | --- |
+| Can model operations be fused? | A graph compiler such as Inductor | Who chooses kernel boundaries? |
+| How is a tile assigned to threads or buffers? | A kernel DSL and its compiler, such as Triton/TileLang | Which decisions are explicit in author code? |
+| How is compiled work loaded, submitted, and synchronized? | A model compiler and runtime such as IREE | What remains after device code exists? |
+
+Continue with [performance and numerics](./mapping-lab.md#block-8-performance-and-numerics-60-minutes). The remaining sections provide deeper backend context.
+
 ## Why a BPU MatMul needs multiple IR levels
 
-Suppose a backend must support an INT8 MatMul. The model contains one mathematical operation, but the compiler must answer questions at several very different levels:
+Suppose a backend must support an INT8 MatMul. This is **one possible teaching decomposition**, not a pipeline shared by Triton, TileLang, and IREE or a proprietary BPU implementation. One mathematical operation raises questions at several different levels:
 
 ```text
 PyTorch or JAX model       What should be computed?

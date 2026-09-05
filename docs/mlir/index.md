@@ -9,6 +9,8 @@ topics: ["编译器", "IR", "Lowering", "硬件映射", "性能验证"]
 
 # MLIR Backend 入门
 
+**第一次来，先走 [12 小时 AI Compiler + C++ 入门](./bootcamp.md)。** 以同一个 MatMul 连接概念，有逐行代码、CPU 实验、C++ 修错和讨论验收。下方是进阶 MLIR 参考目录，不必按顺序一次读完。
+
 这套教程不按 API 字母表展开。它先用 Triton、IREE、StableHLO 和 TileLang 建立真实项目背景，再围绕一条可验证的主线组织：读懂 IR，运行和调试 Pass，建立 Dialect 与 Conversion contract，最后把一个 MatMul 推进到 tile、buffer、DMA、engine schedule 和 target codegen。
 
 ::: tip 学习结果
@@ -50,7 +52,7 @@ Model / Graph
 
 ## 两种节奏
 
-- **两天冲刺：** 先掌握 IR、Progressive Lowering、Dialect Conversion 和 MatMul mapping，目标是面试可讲清楚。
+- **两天入门：** 按 [12 小时路线](./bootcamp.md)建立可讨论的全景，完成 C++ 与 CPU 实验；ODS、完整 Conversion 和真实硬件 Codegen 延后。
 - **三周工程路线：** 增加 ODS、PatternRewriter、测试和 MiniBPU 结课项目，目标是做出一个完整 compiler slice。
 
 ## 边界

@@ -9,6 +9,8 @@ topics: ["Model computation", "Mapping", "Architecture", "Optimization", "Co-des
 
 # AI Compute Full-Stack Co-design Curriculum
 
+If familiar terms still feel disconnected, begin with the [12-hour AI Compiler + C++ primer](./mlir/bootcamp.md). It provides eight hours of computation/mapping foundations and four hours of C++ reasoning before the longer curriculum, without promising a production backend in two days.
+
 The repository is organized around a bidirectional method. The downward direction starts with a model and derives software and hardware requirements. The upward direction starts with hardware resources and constraints and derives better mappings, numerics, or model choices.
 
 ```text

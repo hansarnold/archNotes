@@ -1,5 +1,5 @@
 ---
-title: "真实项目中的 MLIR"
+title: "AI Compiler 真实项目导读"
 description: "从 Triton、IREE、StableHLO 与 TileLang 理解 MLIR 在真实 AI Compiler 中的位置，并把这些经验映射到 BPU backend。"
 outline: deep
 products: ["MLIR", "Triton", "IREE", "TileLang"]
@@ -7,7 +7,7 @@ documentType: "场景导读"
 topics: ["真实项目", "Compiler Pipeline", "Kernel DSL", "BPU Backend", "Lowering"]
 ---
 
-# 真实项目中的 MLIR：从 Triton、IREE 到 TileLang
+# AI Compiler 真实项目导读：Triton、IREE 与 TileLang
 
 如果一上来就学习 Operation、Dialect 和 PatternRewriter，很容易知道每个名词，却不知道它们为什么存在。
 
@@ -18,9 +18,9 @@ topics: ["真实项目", "Compiler Pipeline", "Kernel DSL", "BPU Backend", "Lowe
 - **TileLang 当前不是 MLIR 项目。** 官方文档说明它的 kernel 是 TVM 的 TIR function。它仍然很值得对照学习，因为它解决的也是 tile、memory、pipeline 和硬件映射问题。
 :::
 
-## 12 小时路线：本页只用 60 分钟
+## 概念路线：本页只用 60 分钟 {#12-小时路线-本页只用-60-分钟}
 
-这是 [入门路线](./bootcamp.md)单元 7。先用 20 分钟读下面的三个场景与项目表，20 分钟对照官方 MatMul 示例，再用 20 分钟填写自己的职责表。后半页 BPU 工程拆解与 IR Dump 实验是延伸阅读，不要求这次安装 Triton 或运行 GPU。
+这是 [入门路线](./bootcamp.md)单元 5。先用 20 分钟读下面的三个场景与项目表，20 分钟对照官方 MatMul 示例，再用 20 分钟填写自己的职责表。后半页 BPU 工程拆解与 IR Dump 实验是延伸阅读，不要求这次安装 Triton 或运行 GPU。
 
 ### 场景 A：我有 PyTorch 模型，希望它运行得更快
 

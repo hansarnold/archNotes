@@ -1,15 +1,15 @@
 ---
 title: "30 分钟讨论演练与验收"
-description: "用八个带追问的讨论题和五分钟讲解检验模型、IR、Kernel、硬件与 C++ 是否真正连起来。"
+description: "用六个带追问的 Compiler 讨论题检验模型、IR、Kernel 与硬件是否真正连起来。"
 outline: deep
-products: ["MLIR", "C++", "AI Accelerator"]
+products: ["AI Compiler", "MLIR", "AI Accelerator"]
 documentType: "学习验收"
-topics: ["Discussion", "Compiler Pipeline", "C++", "Verification"]
+topics: ["Discussion", "Compiler Pipeline", "Verification"]
 ---
 
 # 30 分钟讨论演练与验收
 
-这是 [12 小时路线](./bootcamp.md)最后 30 分钟。目标不是背八段答案，而是能说出一个具体例子、适用条件与验证办法。先用 5 分钟写提纲，再讲 5 分钟，抽三道题追问 15 分钟，最后 5 分钟记录薄弱处。
+这是 [AI Compiler 概念路线](./bootcamp.md)最后 30 分钟。目标不是背六段答案，而是能说出一个具体例子、适用条件与验证办法。先用 5 分钟写提纲，再讲 5 分钟，抽三道题追问 15 分钟，最后 5 分钟记录薄弱处。
 
 ## 五分钟，讲清一个计算
 
@@ -19,11 +19,11 @@ topics: ["Discussion", "Compiler Pipeline", "C++", "Verification"]
 | 1–2 分钟 | 为什么需要 Graph/IR，Fusion 改掉什么 | 一个 Operator 是否必然对应一个 Kernel？ |
 | 2–3 分钟 | Tile、Layout、SRAM 与数据搬运 | 容量是否可行？哪项是假设？ |
 | 3–4 分钟 | Compiler、设备代码与 Runtime 各自负责什么 | Compile time 和运行时谁提交任务、等待完成？ |
-| 4–5 分钟 | 一次性能权衡，加上一个 C++ 实验 | 你如何验证正确？哪些结论尚未实测？ |
+| 4–5 分钟 | 一次性能权衡，加上一个 CPU 实验 | 你如何验证正确？哪些结论尚未实测？ |
 
 尽量用“因为……所以选择……代价是……可以用……验证”，而不是连续列出术语。可以对着手机录音；重新听时，删掉自己无法解释的名词。
 
-## 八个核心题：先说，再展开
+## 六个核心题：先说，再展开
 
 ### 1. 模型、IR、Kernel 和 Runtime 是什么关系？
 
@@ -90,33 +90,7 @@ MLIR 提供可扩展 IR、Pass、Rewrite、Verifier 等基础设施，帮助不�
 
 </details>
 
-### 6. `auto`、引用与 `std::move` 最容易误判什么？
-
-<details>
-<summary>参考答案、追问与误区</summary>
-
-对元素逐值遍历通常修改的是副本，逐引用遍历才修改原元素。引用和 `string_view` 不拥有底层对象，必须检查其生命周期。`std::move` 是允许使用移动重载的类型转换，不执行搬运；对 `const` 对象常会选择 Copy，因为通常的 Move Constructor 接受非 const 右值引用。
-
-追问：Move 后原对象能不能读取？要看对象状态与操作前置条件。标准库类型通常保持 valid but unspecified 状态；`unique_ptr` 移动构造后源指针为空有明确保证，不要把这个保证推广到所有用户类型。
-
-误区：`const` 自动延长被引用对象的生命周期，或者任何 moved-from 对象都必然为空。
-
-</details>
-
-### 7. 为什么遍历 `vector` 时删除/新增元素很危险？
-
-<details>
-<summary>参考答案、追问与误区</summary>
-
-`erase` 使删除位置及之后的 Iterator/Reference 失效，应接住它返回的下一个 Iterator；发生 Reallocation 的 `push_back` 会使已有元素的指针、引用和 Iterator 全部失效。`reserve` 不是所有修改的通用安全符。
-
-追问：微型 Pass 为什么只原地替换节点、不 `erase`？节点以位置作为 ID，擦除会移动后面的节点并破坏操作数索引；真实 IR 需要维护 Use-def 与变换协议，不能直接套用普通容器操作。
-
-误区：元素还“看起来在原来的地址”就认为访问一定合法。
-
-</details>
-
-### 8. 怎样讨论“INT8 更快”或“Decode 是 Memory-bound”？
+### 6. 怎样讨论“INT8 更快”或“Decode 是 Memory-bound”？
 
 <details>
 <summary>参考答案、追问与误区</summary>
@@ -131,7 +105,7 @@ MLIR 提供可扩展 IR、Pass、Rewrite、Verifier 等基础设施，帮助不�
 
 ## 评分与下一步
 
-每题 0–2 分：0 分是只认得名词；1 分是能解释并举例；2 分是还能回答一次条件变化，给出代价与验证方法。**12/16 是本教程自设的复盘线，不是行业认证；第 1、5、6 题至少各 1 分。** 同时确认 C++ 修错和 Pass 测试已实际运行通过。
+每题 0–2 分：0 分是只认得名词；1 分是能解释并举例；2 分是还能回答一次条件变化，给出代价与验证方法。**9/12 是本教程自设的复盘线，不是行业认证；第 1、5 题至少各 1 分。** 同时保留 CPU 数值与映射实验结果。C++ 另有独立的[练习验收](./cpp-labs.md#review-discussion)。
 
 - 低于复盘线：只重做最弱的两个单元，不要立刻进入完整 LLVM Build。
 - 达到复盘线：挑一个方向继续。想读 Compiler 源码，进 [Rewrite](./passes-rewrites.md)与 Toy；想做性能映射，进 [Accelerator Mapping](./accelerator-mapping.md)；想做工程闭环，进 [测试与结课项目](./testing-study-plan.md)。

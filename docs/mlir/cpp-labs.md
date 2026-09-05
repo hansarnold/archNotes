@@ -9,7 +9,7 @@ topics: ["Constant Folding", "Templates", "Lambda", "Verification", "IR"]
 
 # C++ 微型 Constant Folding Pass
 
-Day 2 单元 6，共 120 分钟：类/模板/LLVM 类型复习 30、STL 与错误边界 25、实现 Pass 与验证及复述 65。先完成 [C++ 复习 A](./cpp-refresh.md)。
+所属分区：[C++ 复习](../cpp/index.md)，复习 B，共 120 分钟：类/模板/LLVM 类型复习 30、STL 与错误边界 25、实现 Pass 与验证及复述 65。先完成 [C++ 复习 A](./cpp-refresh.md)。
 
 按薄弱项查 [类与对象模型](../cpp/classes.md)、[模板与回调](../cpp/templates.md)、[STL](../cpp/stl.md)和[构建、错误与调试](../cpp/tooling.md)。特别留意特殊成员生成、Forwarding Reference、失效规则、accumulate 的初值类型，以及 LLVM Error 的处理义务。[现代 C++ 与并发](../cpp/modern.md)作为独立速查，不要求本练习变成并发程序。
 
@@ -133,4 +133,34 @@ python3 labs/compiler_bootcamp/run_cpp.py fold --sanitize
 
 谁拥有 Graph？`auto&` 为什么重要？为什么不能在当前遍历里随便扩容？为什么 `INT64_MAX + 1` 不能直接在 C++ 中计算？为什么结构变短不等于已经证明程序更快？
 
-完成后进入[真实项目导读](./real-world.md)。类型和所有权细节参考 [LLVM Programmer’s Manual](https://llvm.org/docs/ProgrammersManual.html) 与 [C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines)。
+完成后回到 [C++ 复习总览](../cpp/index.md)，选择下一项薄弱点。类型和所有权细节参考 [LLVM Programmer’s Manual](https://llvm.org/docs/ProgrammersManual.html) 与 [C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines)。
+
+## 复习讨论 {#review-discussion}
+
+完成练习后，独立解释这两题；它们属于语言复习，不计入 Compiler 概念路线验收。
+
+### 1. `auto`、引用与 `std::move` 最容易误判什么？
+
+<details>
+<summary>参考答案、追问与误区</summary>
+
+对元素逐值遍历通常修改的是副本，逐引用遍历才修改原元素。引用和 `string_view` 不拥有底层对象，必须检查其生命周期。`std::move` 是允许使用移动重载的类型转换，不执行搬运；对 `const` 对象常会选择 Copy，因为通常的 Move Constructor 接受非 const 右值引用。
+
+追问：Move 后原对象能不能读取？要看对象状态与操作前置条件。标准库类型通常保持 valid but unspecified 状态；`unique_ptr` 移动构造后源指针为空有明确保证，不要把这个保证推广到所有用户类型。
+
+误区：`const` 自动延长被引用对象的生命周期，或者任何 moved-from 对象都必然为空。
+
+</details>
+
+### 2. 为什么遍历 `vector` 时删除/新增元素很危险？
+
+<details>
+<summary>参考答案、追问与误区</summary>
+
+`erase` 使删除位置及之后的 Iterator/Reference 失效，应接住它返回的下一个 Iterator；发生 Reallocation 的 `push_back` 会使已有元素的指针、引用和 Iterator 全部失效。`reserve` 不是所有修改的通用安全符。
+
+追问：微型 Pass 为什么只原地替换节点、不 `erase`？节点以位置作为 ID，擦除会移动后面的节点并破坏操作数索引；真实 IR 需要维护 Use-def 与变换协议，不能直接套用普通容器操作。
+
+误区：元素还“看起来在原来的地址”就认为访问一定合法。
+
+</details>

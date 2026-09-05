@@ -9,7 +9,7 @@ topics: ["Ownership", "Lifetime", "Move Semantics", "Containers", "Debugging"]
 
 # C++ Review A: Find Gaps and Repair
 
-Day 1 block 3, 120 minutes: types/deduction 35, lifetime/move 35, diagnostics/repairs/explanation 50. This is for returning C++ developers; skip familiar explanations and use the time on uncertain rules.
+Part of [C++ review](../cpp/index.md), session A, 120 minutes: types/deduction 35, lifetime/move 35, diagnostics/repairs/explanation 50. This is for returning C++ developers; skip familiar explanations and use the time on uncertain rules.
 
 Start with [T01–T12: types and expressions](../cpp/types.md), especially auto, decltype, value categories, and initialization. Then review [L01–L12: lifetime and move](../cpp/lifetime.md). The three repairs below are an exit check, not the scope of C++ review. See the [complete 84-reminder index](../cpp/index.md).
 

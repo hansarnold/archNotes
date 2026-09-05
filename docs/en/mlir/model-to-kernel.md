@@ -9,7 +9,7 @@ topics: ["Graph", "Kernel", "Runtime", "Fusion", "MatMul"]
 
 # From a Model Expression to a Kernel
 
-Day 1 blocks 1–2 of the [twelve-hour route](./bootcamp.md), 150 minutes total. Spend the first 60 minutes through compilation/execution, then 90 minutes on numerical observations, traffic accounting, and explanation.
+Day 1 blocks 1–2 of the [AI Compiler concept route](./bootcamp.md), 150 minutes total. Spend the first 60 minutes through compilation/execution, then 90 minutes on numerical observations, traffic accounting, and explanation.
 
 ## Start with the user's computation
 
@@ -108,4 +108,4 @@ No. Fusion can increase live values, register/SRAM pressure, or reduce paralleli
 
 In three minutes, describe the computation, what the compiler may change, where movement becomes explicit, who submits device work, and which evidence would support an optimization.
 
-Continue to [C++ Refresh](./cpp-refresh.md) and [Reading an IR Change](./ir-reading.md). Compare the real graph-capture/backend relationship with the [PyTorch compiler documentation](https://docs.pytorch.org/docs/stable/user_guide/torch_compiler/torch.compiler.html) and the blocked algorithm with [Triton's matrix multiplication tutorial](https://triton-lang.org/main/getting-started/tutorials/03-matrix-multiplication.html).
+Continue directly to [Reading an IR Change](./ir-reading.md). Compare the real graph-capture/backend relationship with the [PyTorch compiler documentation](https://docs.pytorch.org/docs/stable/user_guide/torch_compiler/torch.compiler.html) and the blocked algorithm with [Triton's matrix multiplication tutorial](https://triton-lang.org/main/getting-started/tutorials/03-matrix-multiplication.html).

@@ -1,15 +1,15 @@
 ---
 title: "30-Minute Discussion and Exit Check"
-description: "Eight questions with follow-ups and a five-minute explanation test connections between models, IR, kernels, hardware, and C++."
+description: "Six compiler questions with follow-ups test connections between models, IR, kernels, and hardware."
 outline: deep
-products: ["MLIR", "C++", "AI Accelerator"]
+products: ["AI Compiler", "MLIR", "AI Accelerator"]
 documentType: "Learning Assessment"
-topics: ["Discussion", "Compiler Pipeline", "C++", "Verification"]
+topics: ["Discussion", "Compiler Pipeline", "Verification"]
 ---
 
 # 30-Minute Discussion and Exit Check
 
-Use the final 30 minutes of the [twelve-hour route](./bootcamp.md) to explain examples, conditions, and verification methods rather than memorize answers. Spend five minutes outlining, five presenting, fifteen answering follow-ups on three chosen questions, and five recording weak spots.
+Use the final 30 minutes of the [AI Compiler concept route](./bootcamp.md) to explain examples, conditions, and verification methods rather than memorize answers. Spend five minutes outlining, five presenting, fifteen answering follow-ups on three chosen questions, and five recording weak spots.
 
 ## Explain one computation in five minutes
 
@@ -19,11 +19,11 @@ Use the final 30 minutes of the [twelve-hour route](./bootcamp.md) to explain ex
 | Minute 1–2 | Why graph/IR exists and what fusion changes | Whether one operator implies one kernel |
 | Minute 2–3 | Tiles, layout, SRAM, and movement | Capacity feasibility and assumptions |
 | Minute 3–4 | Compiler, device code, and runtime responsibilities | Compilation versus submission and synchronization |
-| Minute 4–5 | A performance tradeoff and one C++ experiment | Correctness evidence and unmeasured claims |
+| Minute 4–5 | A performance tradeoff and one CPU experiment | Correctness evidence and unmeasured claims |
 
 Use this structure: because of a constraint, choose an approach, state its cost, and propose verification. A phone recording can reveal terms you cannot yet explain.
 
-## Eight questions: answer before revealing
+## Six questions: answer before revealing
 
 ### 1. How do models, IR, kernels, and runtime relate?
 
@@ -90,33 +90,7 @@ Misconception: a few passing positive examples prove equivalence for all inputs.
 
 </details>
 
-### 6. What is easily misread about auto, references, and move?
-
-<details>
-<summary>Reference answer, follow-up, and misconception</summary>
-
-Iteration by value generally modifies a copy; iteration by reference can modify the original. References and string views do not own underlying objects, so lifetime matters. `std::move` changes an expression's category to enable move overloads; it does not transfer resources itself. A const input commonly selects a copy because an ordinary move constructor needs a non-const rvalue reference.
-
-Follow-up: can you read a moved-from object? Consult its guarantees and the operation's preconditions. Standard-library objects generally remain valid but unspecified; an emptied source after unique_ptr move construction is a specific guarantee, not a universal property of user-defined types.
-
-Misconception: const automatically prolongs a referenced object's lifetime, or every moved-from object must be empty.
-
-</details>
-
-### 7. Why are vector edits during traversal risky?
-
-<details>
-<summary>Reference answer, follow-up, and misconception</summary>
-
-Erase invalidates iterators and references at or after the erased position; continue with its returned iterator. A push_back that reallocates invalidates existing element pointers, references, and iterators. Reserve is not a universal safety guarantee for arbitrary mutation.
-
-Follow-up: why does the miniature pass replace nodes without erasing them? Position is the node ID, so erasure shifts later nodes and corrupts operand indices. Real IR must maintain use-def relationships through appropriate transformation APIs.
-
-Misconception: an address that appears unchanged establishes that access remains legal.
-
-</details>
-
-### 8. How should you discuss INT8 speed or memory-bound decode?
+### 6. How should you discuss INT8 speed or memory-bound decode?
 
 <details>
 <summary>Reference answer, follow-up, and misconception</summary>
@@ -131,7 +105,7 @@ Misconception: roofline bounds, predictions, and measurements are interchangeabl
 
 ## Score and continue
 
-Score each question from zero to two: zero for recognizing terms only, one for explaining with an example, two for answering a changed condition with costs and verification. **12/16 is this tutorial's self-review threshold, not an industry certification; questions 1, 5, and 6 should each score at least one.** Also actually run and pass the C++ repairs and pass tests.
+Score each question from zero to two: zero for recognizing terms only, one for explaining with an example, two for answering a changed condition with costs and verification. **9/12 is this tutorial's self-review threshold, not an industry certification; questions 1 and 5 should each score at least one.** Keep the CPU numerical and mapping experiment results as evidence. C++ has its own [practice assessment](./cpp-labs.md#review-discussion).
 
 - Below the threshold, repeat the two weakest blocks instead of immediately building all of LLVM.
 - Above it, choose one next direction: [rewrites](./passes-rewrites.md) and Toy for source reading, [accelerator mapping](./accelerator-mapping.md) for performance, or [testing and the capstone](./testing-study-plan.md) for an engineering slice.

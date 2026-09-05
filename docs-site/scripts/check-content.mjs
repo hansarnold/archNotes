@@ -45,6 +45,7 @@ const canonicalOwnershipTitles = [
 ];
 const pairedLocalePaths = [
   "index.md",
+  "architecture/index.md",
   "curriculum.md",
   "glossary.md",
   "notes/model-computation-primitives.md",
@@ -62,6 +63,21 @@ const englishLocalePaths = markdownFiles
   .filter((file) => file.startsWith(path.join(docsRoot, "en") + path.sep))
   .map((file) => path.relative(path.join(docsRoot, "en"), file));
 
+for (const prefix of ["", "en/"]) {
+  const route = readFileSync(path.join(docsRoot, prefix, "mlir/bootcamp.md"), "utf8");
+  const rows = [...route.matchAll(/^\| \[(\d+)\.[^\n]+?\|\s*(\d+)\s*\|/gm)];
+  if (rows.length !== 7 || rows.map((row) => row[1]).join() !== "1,2,3,4,5,6,7"
+    || rows.slice(0, 3).reduce((sum, row) => sum + Number(row[2]), 0) !== 240
+    || rows.slice(3).reduce((sum, row) => sum + Number(row[2]), 0) !== 240
+    || rows.some((row) => /cpp-refresh|cpp-labs/.test(row[0]))) {
+    errors.push(`${prefix}mlir/bootcamp.md: keep seven Compiler-only blocks, 240 minutes per day`);
+  }
+  const discussion = readFileSync(path.join(docsRoot, prefix, "mlir/discussion.md"), "utf8");
+  if ([...discussion.matchAll(/^### \d+\./gm)].length !== 6) {
+    errors.push(`${prefix}mlir/discussion.md: keep six Compiler questions; C++ assessment belongs to its own practice`);
+  }
+}
+
 for (const relativePath of chineseLocalePaths) {
   if (!englishLocalePaths.includes(relativePath)) errors.push(`Missing English route counterpart: docs/en/${relativePath}`);
 }
@@ -69,7 +85,7 @@ for (const relativePath of englishLocalePaths) {
   if (!chineseLocalePaths.includes(relativePath)) errors.push(`Missing Chinese route counterpart: docs/${relativePath}`);
 }
 
-for (const relativePath of ["index.md", "curriculum.md", "topics.md", "notes/learning-roadmap.md"]) {
+for (const relativePath of ["architecture/index.md", "curriculum.md", "topics.md", "notes/learning-roadmap.md"]) {
   const source = readFileSync(path.join(docsRoot, relativePath), "utf8");
   for (const track of canonicalLearningTracks) {
     if (!source.includes(track)) errors.push(`docs/${relativePath}: missing canonical learning track label ${track}`);
@@ -77,7 +93,7 @@ for (const relativePath of ["index.md", "curriculum.md", "topics.md", "notes/lea
 }
 
 for (const localePrefix of ["", "en/"]) {
-  for (const relativePath of ["index.md", "curriculum.md", "topics.md"]) {
+  for (const relativePath of ["architecture/index.md", "curriculum.md", "topics.md"]) {
     const source = readFileSync(path.join(docsRoot, localePrefix, relativePath), "utf8");
     for (const title of canonicalOwnershipTitles) {
       if (!source.includes(title)) errors.push(`docs/${localePrefix}${relativePath}: missing canonical ownership document title ${title}`);

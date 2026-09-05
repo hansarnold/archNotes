@@ -9,7 +9,7 @@ topics: ["Ownership", "Lifetime", "Move Semantics", "Containers", "Debugging"]
 
 # C++ 复习 A：查漏与修错
 
-Day 1 单元 3，共 120 分钟：类型与推导 35、Lifetime/Move 35、自测与修错及复述 50。面向写过 C++ 的人；已熟悉的讲解可跳过，把时间用于不确定的规则。
+所属分区：[C++ 复习](../cpp/index.md)，复习 A，共 120 分钟：类型与推导 35、Lifetime/Move 35、自测与修错及复述 50。面向写过 C++ 的人；已熟悉的讲解可跳过，把时间用于不确定的规则。
 
 先查 [T01–T12：类型与表达式](../cpp/types.md)，特别是 auto、decltype、Value Category 与初始化；再查 [L01–L12：生命周期与 Move](../cpp/lifetime.md)。下面的三个修错任务是验收，不是 C++ 知识范围的上限。完整目录见 [84 条复习速查](../cpp/index.md)。
 

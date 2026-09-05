@@ -52,7 +52,7 @@ Go directly to the [C++17 / C++20 runnable checks](./tooling.md#verification) fo
 
 Mark only rules you cannot explain. Predict type, result, ownership, and invalidation before revealing an answer. Distinguish guaranteed behavior, unspecified behavior, implementation-defined behavior, and undefined behavior.
 
-**Four hours is a priority-review budget, not a limit on the reference library.** The AI Compiler route still totals twelve hours; these sheets remain independently useful while reading source later.
+**Four hours is a priority-review budget, not a limit on the reference library.** This is an independent language-review route. It can be paired with the eight-hour AI Compiler route for a twelve-hour plan, but neither section interrupts the other.
 
 | Session | Minutes | Activity |
 | --- | ---: | --- |

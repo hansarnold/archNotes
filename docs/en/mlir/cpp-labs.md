@@ -9,7 +9,7 @@ topics: ["Constant Folding", "Templates", "Lambda", "Verification", "IR"]
 
 # A Miniature C++ Constant Folding Pass
 
-Day 2 block 6, 120 minutes: classes/templates/LLVM utilities 30, STL and error boundaries 25, pass implementation/validation/explanation 65. Complete [C++ Review A](./cpp-refresh.md) first.
+Part of [C++ review](../cpp/index.md), session B, 120 minutes: classes/templates/LLVM utilities 30, STL and error boundaries 25, pass implementation/validation/explanation 65. Complete [C++ Review A](./cpp-refresh.md) first.
 
 Look up gaps in [classes](../cpp/classes.md), [templates and callbacks](../cpp/templates.md), [STL](../cpp/stl.md), and [builds/errors/debugging](../cpp/tooling.md). Focus on special members, forwarding references, invalidation, accumulate's initial type, and LLVM Error handling obligations. [Modern C++ and concurrency](../cpp/modern.md) is an independent reference; this exercise need not become concurrent.
 
@@ -125,4 +125,34 @@ In [MLIR Toy Chapter 3](https://mlir.llvm.org/docs/Tutorials/Toy/Ch-3/), identif
 
 Who owns the graph? Why is `auto&` necessary? Why avoid arbitrary growth during traversal? Why not directly evaluate `INT64_MAX + 1` in C++? Why does shorter IR not prove a speedup?
 
-Continue to [real projects](./real-world.md). Consult the [LLVM manual](https://llvm.org/docs/ProgrammersManual.html) and [C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines) for utility and ownership details.
+Return to the [C++ review index](../cpp/index.md) to choose the next weak area. Consult the [LLVM manual](https://llvm.org/docs/ProgrammersManual.html) and [C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines) for utility and ownership details.
+
+## Review discussion {#review-discussion}
+
+Explain these after finishing the exercises; they belong to language review rather than the Compiler concept exam.
+
+### 1. What is easily misread about auto, references, and move?
+
+<details>
+<summary>Reference answer, follow-up, and misconception</summary>
+
+Iteration by value generally modifies a copy; iteration by reference can modify the original. References and string views do not own underlying objects, so lifetime matters. `std::move` changes an expression's category to enable move overloads; it does not transfer resources itself. A const input commonly selects a copy because an ordinary move constructor needs a non-const rvalue reference.
+
+Follow-up: can you read a moved-from object? Consult its guarantees and the operation's preconditions. Standard-library objects generally remain valid but unspecified; an emptied source after unique_ptr move construction is a specific guarantee, not a universal property of user-defined types.
+
+Misconception: const automatically prolongs a referenced object's lifetime, or every moved-from object must be empty.
+
+</details>
+
+### 2. Why are vector edits during traversal risky?
+
+<details>
+<summary>Reference answer, follow-up, and misconception</summary>
+
+Erase invalidates iterators and references at or after the erased position; continue with its returned iterator. A push_back that reallocates invalidates existing element pointers, references, and iterators. Reserve is not a universal safety guarantee for arbitrary mutation.
+
+Follow-up: why does the miniature pass replace nodes without erasing them? Position is the node ID, so erasure shifts later nodes and corrupts operand indices. Real IR must maintain use-def relationships through appropriate transformation APIs.
+
+Misconception: an address that appears unchanged establishes that access remains legal.
+
+</details>

@@ -9,7 +9,9 @@ topics: ["Constant Folding", "Templates", "Lambda", "Verification", "IR"]
 
 # A Miniature C++ Constant Folding Pass
 
-Day 2 block 6, 120 minutes: syntax 25, implementation 55, boundary validation 25, source comparison/explanation 15. Complete [C++ Refresh A](./cpp-refresh.md) first.
+Day 2 block 6, 120 minutes: classes/templates/LLVM utilities 30, STL and error boundaries 25, pass implementation/validation/explanation 65. Complete [C++ Review A](./cpp-refresh.md) first.
+
+Look up gaps in [classes](../cpp/classes.md), [templates and callbacks](../cpp/templates.md), [STL](../cpp/stl.md), and [builds/errors/debugging](../cpp/tooling.md). Focus on special members, forwarding references, invalidation, accumulate's initial type, and LLVM Error handling obligations. [Modern C++ and concurrency](../cpp/modern.md) is an independent reference; this exercise need not become concurrent.
 
 ## Syntax found in compiler code
 

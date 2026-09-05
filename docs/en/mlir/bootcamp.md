@@ -1,5 +1,5 @@
 ---
-title: "12-Hour AI Compiler and C++ Primer"
+title: "12-Hour AI Compiler Primer + C++ Review"
 description: "A two-day route connecting models, IR, kernels, and hardware through one MatMul example, with C++ repair exercises and a miniature compiler pass."
 outline: deep
 products: ["MLIR", "C++", "AI Accelerator"]
@@ -7,11 +7,13 @@ documentType: "Learning Route"
 topics: ["AI Compiler", "C++", "Foundations", "Practice", "Discussion"]
 ---
 
-# 12-Hour AI Compiler and C++ Primer
+# 12-Hour AI Compiler Primer + C++ Review
 
 For readers with some C++, Clang/GCC, or GPU exposure who still find the connections between models, IR, kernels, and hardware unclear. After two days, explain compiler decisions through one example and independently read, change, and validate a small C++ program.
 
 **720 minutes total: 480 for AI compilers and 240 for C++. Each day contains six hours of focused work; breaks are additional.** Every block includes reading, exercises, and explanation. Linked reference chapters are optional, not extra assignments.
+
+**C++ is review, not a from-scratch introduction.** The [C++ review cheat sheets](../cpp/index.md) contain seven topics and 84 easily forgotten rules. Prioritize uncertain points during these two days and keep the complete reference for later source reading. Scan, jump to a rule and counterexample, then test your prediction.
 
 ## Starting point
 
@@ -27,7 +29,7 @@ The continuous example is `Y = ReLU(X @ W + bias)`. Follow its computation, data
 | --- | ---: | --- | --- |
 | [1. Execution overview](./model-to-kernel.md) | 60 | Model expression, graph, IR, kernel, runtime; compilation versus execution | Explain one call and name each layer's input and output |
 | [2. An operator becomes a program](./model-to-kernel.md#block-2) | 90 | MatMul shapes, loops, bias, ReLU, fusion; a CPU comparison | Equal numerical results and an explanation of avoided intermediates |
-| [3. C++ refresh A](./cpp-refresh.md) | 120 | Values/references, lifetime, RAII, invalidation, copy/move; prediction and repairs | Three repaired tasks with ownership explained |
+| [3. C++ review A](./cpp-refresh.md) | 120 | Types/deduction 35, lifetime/move 35, predictions and three repairs 50 | Explain decltype, const moves, invalidation, and repair all three tasks |
 | [4. Read an IR change](./ir-reading.md) | 90 | Annotated MLIR; canonicalization, CSE, and lowering | Identify definitions and uses and explain transformation legality |
 
 End Day 1 by explaining why one computation has several representations and how a C++ object's lifetime differs from an IR value's dependency relationships.
@@ -37,7 +39,7 @@ End Day 1 by explaining why one computation has several representations and how 
 | Block | Minutes | Reading and activity | Evidence of completion |
 | --- | ---: | --- | --- |
 | [5. Execute a tile](./mapping-lab.md) | 90 | Layout, buffers, SRAM, DMA, synchronization; change a tile parameter | Calculate working sets and explain a rejected and a feasible plan |
-| [6. C++ refresh B](./cpp-labs.md) | 120 | Classes, templates, lambdas, LLVM utilities; miniature constant folding | Fold constants, retain variable paths, and pass boundary checks |
+| [6. C++ review B](./cpp-labs.md) | 120 | Classes/templates/LLVM utilities 30, STL/error boundaries 25, miniature pass and validation 65 | Fold constants, retain variable paths, and explain boundary checks |
 | [7. Compare real systems](./real-world.md) | 60 | Triton, TileLang, IREE, StableHLO, and PyTorch responsibilities | Locate each project and describe a concrete use |
 | [8. Performance and numerics](./mapping-lab.md#block-8-performance-and-numerics-60-minutes) | 60 | FLOPs/bytes, roofline, INT8, shape changes; analysis script | Separate lower bounds, predictions, and measurements; explain quantization error |
 | [9. Discussion rehearsal](./discussion.md) | 30 | Five-minute explanation followed by changed-condition questions | State reasoning, cost, verification, and remaining uncertainty |

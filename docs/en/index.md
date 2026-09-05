@@ -17,7 +17,9 @@ NVIDIA GPU, Groq LPU/TSP, Tenstorrent Tensix, and Google TPU are architecture ca
 
 ## Six Learning Tracks
 
-For a short starting route, take the [12-hour AI Compiler + C++ primer](./mlir/bootcamp.md): one MatMul connects models, IR, kernels, and hardware, with CPU-only C++ repairs and a miniature pass.
+For a short starting route, take the [12-hour AI Compiler primer + C++ review](./mlir/bootcamp.md): one MatMul connects models, IR, kernels, and hardware, with CPU-only C++ repairs and a miniature pass.
+
+Already write C++ but need to recover forgotten rules? Use the [C++ review cheat sheets](./cpp/index.md): seven topics, 84 reminders, short examples, pitfalls, and self-checks.
 
 | Track | Entry | Primary question |
 | --- | --- | --- |

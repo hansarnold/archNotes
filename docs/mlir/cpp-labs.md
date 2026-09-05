@@ -9,7 +9,9 @@ topics: ["Constant Folding", "Templates", "Lambda", "Verification", "IR"]
 
 # C++ 微型 Constant Folding Pass
 
-Day 2 单元 6，共 120 分钟：阅读语法 25、实现 55、边界验证 25、源码对照与复述 15。先完成 [C++ 回温 A](./cpp-refresh.md)。
+Day 2 单元 6，共 120 分钟：类/模板/LLVM 类型复习 30、STL 与错误边界 25、实现 Pass 与验证及复述 65。先完成 [C++ 复习 A](./cpp-refresh.md)。
+
+按薄弱项查 [类与对象模型](../cpp/classes.md)、[模板与回调](../cpp/templates.md)、[STL](../cpp/stl.md)和[构建、错误与调试](../cpp/tooling.md)。特别留意特殊成员生成、Forwarding Reference、失效规则、accumulate 的初值类型，以及 LLVM Error 的处理义务。[现代 C++ 与并发](../cpp/modern.md)作为独立速查，不要求本练习变成并发程序。
 
 ## 读 Compiler 代码时常见的语法
 

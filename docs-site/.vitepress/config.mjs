@@ -28,10 +28,10 @@ const learningTracks = [
 const learningTrackItems = (prefix = "") => learningTracks.map(([relativePath, title]) => item(`${prefix}${relativePath}`, title));
 
 const overviewSidebar = [
-  { text: "开始", items: [item("", "总览"), item("mlir/bootcamp", "12 小时 AI Compiler + C++"), item("cpp/", "C++ 复习速查"), item("curriculum", "课程蓝图"), item("topics", "主题矩阵"), item("notes/learning-roadmap", "学习路线")] },
+  { text: "硬件架构", items: [item("architecture/", "架构总览"), item("notes/learning-roadmap", "架构学习路线"), item("curriculum", "研究主线"), item("topics", "架构主题矩阵")] },
   {
     text: "全栈主干",
-    collapsed: false,
+    collapsed: true,
     items: learningTrackItems(),
   },
   {
@@ -75,19 +75,17 @@ const overviewSidebar = [
 
 const englishSidebar = [
   {
-    text: "Start",
+    text: "Hardware Architecture",
     items: [
-      item("en", "Overview"),
-      item("en/mlir/bootcamp", "12-Hour AI Compiler + C++"),
-      item("en/cpp/", "C++ Review Cheat Sheets"),
-      item("en/curriculum", "Curriculum"),
-      item("en/topics", "Topic Matrix"),
+      item("en/architecture/", "Architecture Overview"),
+      item("en/curriculum", "Research Tracks"),
+      item("en/topics", "Architecture Topic Matrix"),
       item("en/notes/learning-roadmap", "Learning Roadmap"),
     ],
   },
   {
     text: "Full-Stack Backbone",
-    collapsed: false,
+    collapsed: true,
     items: learningTrackItems("en/"),
   },
   {
@@ -138,21 +136,8 @@ const englishSidebar = [
 
 const mlirSidebar = [
   {
-    text: "开始",
-    items: [item("mlir/bootcamp", "12 小时学习路线"), item("cpp/", "C++ 复习速查"), item("mlir", "MLIR 教程总览"), item("mlir/real-world", "真实项目中的 MLIR")],
-  },
-  {
-    text: "12 小时动手入门",
-    collapsed: false,
-    items: [
-      item("mlir/model-to-kernel", "1–2. 模型到 Kernel"),
-      item("mlir/cpp-refresh", "3. C++ 复习 A"),
-      item("mlir/ir-reading", "4. 读懂 IR 变化"),
-      item("mlir/mapping-lab", "5 / 8. Tile、性能与数值"),
-      item("mlir/cpp-labs", "6. C++ 复习 B：微型 Pass"),
-      item("mlir/real-world", "7. 真实项目对照"),
-      item("mlir/discussion", "9. 讨论演练与验收"),
-    ],
+    text: "AI Compiler · MLIR 专题",
+    items: [item("mlir/", "MLIR 专题总览"), item("compiler/", "返回 AI Compiler 分区")],
   },
   {
     text: "IR 与变换",
@@ -183,21 +168,8 @@ const mlirSidebar = [
 
 const englishMlirSidebar = [
   {
-    text: "Start",
-    items: [item("en/mlir/bootcamp", "12-Hour Learning Route"), item("en/cpp/", "C++ Review Cheat Sheets"), item("en/mlir", "MLIR Tutorial Overview"), item("en/mlir/real-world", "MLIR in Real Projects")],
-  },
-  {
-    text: "12-Hour Hands-on Primer",
-    collapsed: false,
-    items: [
-      item("en/mlir/model-to-kernel", "1–2. Model to Kernel"),
-      item("en/mlir/cpp-refresh", "3. C++ Review A"),
-      item("en/mlir/ir-reading", "4. Read an IR Change"),
-      item("en/mlir/mapping-lab", "5 / 8. Tiles, Performance, Numerics"),
-      item("en/mlir/cpp-labs", "6. C++ Review B: Miniature Pass"),
-      item("en/mlir/real-world", "7. Compare Real Projects"),
-      item("en/mlir/discussion", "9. Discussion and Exit Check"),
-    ],
+    text: "AI Compiler · MLIR Track",
+    items: [item("en/mlir/", "MLIR Track Overview"), item("en/compiler/", "Back to AI Compiler")],
   },
   {
     text: "IR and Transformation",
@@ -261,33 +233,52 @@ const cppSidebar = (prefix = "") => {
         item(`${prefix}cpp/tooling#verification`, english ? "Runnable Self-Checks" : "可运行自测"),
         item(`${prefix}mlir/cpp-refresh`, english ? "Review A: Three Repairs" : "复习 A：三个修错任务"),
         item(`${prefix}mlir/cpp-labs`, english ? "Review B: Miniature Pass" : "复习 B：微型 Pass"),
-        item(`${prefix}mlir/bootcamp`, english ? "AI Compiler Learning Route" : "AI Compiler 学习路线"),
       ],
     },
   ];
 };
 
-const sidebars = { "/cpp/": cppSidebar(), "/mlir/": mlirSidebar, "/": overviewSidebar };
+const compilerChapters = ["bootcamp", "model-to-kernel", "ir-reading", "mapping-lab", "real-world", "discussion"];
+const cppPracticeChapters = ["cpp-refresh", "cpp-labs"];
+const compilerSidebar = (prefix = "") => {
+  const en = prefix === "en/";
+  return [
+    { text: "AI Compiler", items: [item(`${prefix}compiler/`, en ? "Choose a Learning Track" : "选择学习路线"), item(`${prefix}mlir/bootcamp`, en ? "Two-Day Concept Route" : "两天概念路线")] },
+    { text: en ? "Concepts and CPU Experiments" : "概念与 CPU 实验", items: [
+      item(`${prefix}mlir/model-to-kernel`, en ? "Model to Kernel" : "模型到 Kernel"),
+      item(`${prefix}mlir/ir-reading`, en ? "Read an IR Change" : "读懂一处 IR 变化"),
+      item(`${prefix}mlir/mapping-lab`, en ? "Tiles, Memory, Performance" : "Tile、Memory 与性能"),
+      item(`${prefix}mlir/real-world`, en ? "Triton, TileLang, IREE" : "Triton、TileLang、IREE 对照"),
+      item(`${prefix}mlir/discussion`, en ? "Discussion and Exit Check" : "讨论与验收"),
+    ] },
+    { text: en ? "Implementation Track" : "实现专题", items: [item(`${prefix}mlir/`, en ? "MLIR: IR, Pass, Lowering" : "MLIR：IR、Pass、Lowering")] },
+  ];
+};
+
+// Preserve published article URLs while assigning each page one navigation owner.
+// Exact legacy-page keys precede the equally deep /mlir/ prefix in VitePress 1.x.
+const sectionSidebars = (prefix = "") => ({
+  ...Object.fromEntries(cppPracticeChapters.map((chapter) => [`/${prefix}mlir/${chapter}`, cppSidebar(prefix)])),
+  ...Object.fromEntries(compilerChapters.map((chapter) => [`/${prefix}mlir/${chapter}`, compilerSidebar(prefix)])),
+  [`/${prefix}cpp/`]: cppSidebar(prefix),
+  [`/${prefix}compiler/`]: compilerSidebar(prefix),
+  [`/${prefix}mlir/`]: prefix ? englishMlirSidebar : mlirSidebar,
+  [`/${prefix}`]: prefix ? englishSidebar : overviewSidebar,
+});
+
+const sectionNav = (prefix = "") => {
+  const en = prefix === "en/";
+  return [
+    { text: en ? "Home" : "首页", link: `/${prefix}`, activeMatch: `^/${prefix}$` },
+    { text: en ? "Architecture" : "硬件架构", link: `/${prefix}architecture/`, activeMatch: `^/${prefix}(?:architecture/|notes/|labs/|curriculum|topics|glossary|sources/)` },
+    { text: "AI Compiler", link: `/${prefix}compiler/`, activeMatch: `^/${prefix}(?:compiler/|mlir/(?!cpp-refresh|cpp-labs))` },
+    { text: en ? "C++ Review" : "C++ 复习", link: `/${prefix}cpp/`, activeMatch: `^/${prefix}(?:cpp/|mlir/(?:cpp-refresh|cpp-labs))` },
+  ];
+};
 
 const rootLocaleThemeConfig = {
-  nav: [
-    { text: "总览", link: "/", activeMatch: "^/(?:topics|notes/(?:learning-roadmap|ai-accelerator-architecture-comparison|inference-stack))?$" },
-    { text: "AI Compiler", link: "/mlir/bootcamp", activeMatch: "^/mlir/" },
-    { text: "C++ 速查", link: "/cpp/", activeMatch: "^/cpp/" },
-    { text: "NVIDIA GPU", link: "/notes/nvidia-gpu-synchronization", activeMatch: "^/notes/nvidia" },
-    { text: "Groq TSP", link: "/notes/architecture", activeMatch: "^/(?:notes/(?:architecture|instruction-flow|compiler|software-optimization|lpu-vs-gpu)|labs/static_scheduler)" },
-    { text: "Tensix", link: "/notes/tenstorrent-architecture", activeMatch: "^/(?:notes/tenstorrent|labs/tensix_pipeline)" },
-    { text: "TPU", link: "/notes/google-tpu-architecture", activeMatch: "^/(?:notes/google-tpu|labs/systolic_array)" },
-    {
-      text: "实验",
-      items: [
-        { text: "静态时空调度", link: "/labs/static_scheduler" },
-        { text: "Tensix 流水与背压", link: "/labs/tensix_pipeline" },
-        { text: "Systolic Array 波前", link: "/labs/systolic_array" },
-      ],
-    },
-  ],
-  sidebar: sidebars,
+  nav: sectionNav(),
+  sidebar: sectionSidebars(),
   outline: { level: [2, 3], label: "本页目录" },
   docFooter: { prev: "上一篇", next: "下一篇" },
   lastUpdated: { text: "最后更新" },
@@ -302,15 +293,8 @@ const rootLocaleThemeConfig = {
 };
 
 const englishLocaleThemeConfig = {
-  nav: [
-    { text: "Overview", link: "/en/" },
-    { text: "AI Compiler", link: "/en/mlir/bootcamp", activeMatch: "^/en/mlir/" },
-    { text: "C++ Review", link: "/en/cpp/", activeMatch: "^/en/cpp/" },
-    { text: "Curriculum", link: "/en/curriculum" },
-    { text: "Architecture", link: "/en/notes/ai-accelerator-architecture-comparison" },
-    { text: "Glossary", link: "/en/glossary" },
-  ],
-  sidebar: { "/en/cpp/": cppSidebar("en/"), "/en/mlir/": englishMlirSidebar, "/en/": englishSidebar },
+  nav: sectionNav("en/"),
+  sidebar: sectionSidebars("en/"),
   outline: { level: [2, 3], label: "On this page" },
   docFooter: { prev: "Previous", next: "Next" },
   lastUpdated: { text: "Last updated" },

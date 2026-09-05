@@ -8,6 +8,10 @@ const siteRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const pages = [
   {
     file: "dist/client/index.html",
+    markers: ["/architecture/", "/compiler/", "/cpp/"],
+  },
+  {
+    file: "dist/client/architecture/index.html",
     markers: ["VPSidebar", "VPDocAside", "全栈主干"],
   },
   {
@@ -32,6 +36,10 @@ const pages = [
   },
   {
     file: "dist/client/en/index.html",
+    markers: ["/en/architecture/", "/en/compiler/", "/en/cpp/"],
+  },
+  {
+    file: "dist/client/en/architecture/index.html",
     markers: ["VPSidebar", "VPDocAside", "Full-Stack Backbone"],
   },
   {
@@ -44,15 +52,16 @@ const pages = [
   },
   {
     file: "dist/client/mlir/index.html",
-    markers: ["VPSidebar", "VPDocAside", "真实项目中的 MLIR", "IR 与变换", "Backend 与硬件", "实践"],
+    markers: ["VPSidebar", "VPDocAside", "MLIR 专题总览", "IR 与变换", "Backend 与硬件", "实践"],
   },
   {
     file: "dist/client/en/mlir/index.html",
-    markers: ["VPSidebar", "VPDocAside", "MLIR in Real Projects", "IR and Transformation", "Backend and Hardware", "Practice"],
+    markers: ["VPSidebar", "VPDocAside", "MLIR Track Overview", "IR and Transformation", "Backend and Hardware", "Practice"],
   },
 ];
 
 for (const locale of ["", "en/"]) {
+  pages.push({ file: `dist/client/${locale}compiler/index.html`, markers: ["VPSidebar", "VPDocAside", `/${locale}mlir/bootcamp`, `/${locale}mlir/`] });
   for (const chapter of ["index", "types", "lifetime", "classes", "templates", "stl", "modern", "tooling"]) {
     pages.push({
       file: `dist/client/${locale}cpp/${chapter}.html`,
@@ -63,13 +72,22 @@ for (const locale of ["", "en/"]) {
   for (const chapter of ["bootcamp", "model-to-kernel", "cpp-refresh", "ir-reading", "mapping-lab", "cpp-labs", "real-world", "discussion"]) {
     pages.push({
       file: `dist/client/${locale}mlir/${chapter}.html`,
-      markers: ["VPSidebar", "VPDocAside", `/${locale}mlir/bootcamp`, `/${locale}mlir/cpp-labs`, `/${locale}mlir/discussion`,
+      markers: ["VPSidebar", "VPDocAside",
+        ...(["cpp-refresh", "cpp-labs"].includes(chapter) ? [`/${locale}cpp/types`, `/${locale}cpp/tooling`] : [`/${locale}compiler/`, `/${locale}mlir/discussion`]),
         ...(["cpp-refresh", "cpp-labs", "mapping-lab", "discussion"].includes(chapter) ? ["<details", "<summary>"] : [])],
     });
   }
 }
 
 const errors = [];
+const navigationOwner = (pathname) => {
+  const route = pathname.replace(/^\/en(?=\/)/, "").replace(/\.html$/, "").replace(/\/index$/, "/");
+  if (route === "/") return "home";
+  if (/^\/cpp\/|^\/mlir\/(cpp-refresh|cpp-labs)$/.test(route)) return "cpp";
+  if (/^\/compiler\/|^\/mlir\/(bootcamp|model-to-kernel|ir-reading|mapping-lab|real-world|discussion)$/.test(route)) return "compiler";
+  if (route.startsWith("/mlir/")) return "mlir";
+  return "architecture";
+};
 for (const page of pages) {
   const target = path.join(siteRoot, page.file);
   if (!existsSync(target)) {
@@ -77,6 +95,19 @@ for (const page of pages) {
     continue;
   }
   const source = readFileSync(target, "utf8");
+  const owner = navigationOwner(page.file.replace("dist/client", ""));
+  const sidebar = source.match(/<aside\b[^>]*class="[^"]*\bVPSidebar\b[^"]*"[^>]*>[\s\S]*?<\/aside>/)?.[0];
+  if (owner === "home" && sidebar) errors.push(`${page.file}: homepage must not expose a domain sidebar`);
+  if (owner !== "home" && !sidebar) errors.push(`${page.file}: section sidebar is missing`);
+  for (const match of (sidebar ?? "").matchAll(/href="([^"]+)"/g)) {
+    const url = new URL(match[1], "https://course.invalid");
+    const targetOwner = navigationOwner(url.pathname);
+    const parentLink = owner === "mlir" && /^\/(en\/)?compiler\/$/.test(url.pathname);
+    if (url.origin === "https://course.invalid" && targetOwner !== owner && !parentLink
+      && !(owner === "compiler" && /^\/(en\/)?mlir\/$/.test(url.pathname))) {
+      errors.push(`${page.file}: ${owner} sidebar leaks ${targetOwner} page ${match[1]}`);
+    }
+  }
   for (const marker of page.markers) {
     if (!source.includes(marker)) errors.push(`${page.file}: missing rendered navigation marker ${marker}`);
   }
@@ -88,7 +119,7 @@ for (const page of pages) {
       if (source.split(`id="${id}"`).length !== 2) errors.push(`${page.file}: expected exactly one reminder anchor ${id}`);
     }
   }
-  if (/\/(?:mlir|cpp)\//.test(page.file)) {
+  if (/\/(?:mlir|cpp|compiler|architecture)\//.test(page.file)) {
     const pageUrl = new URL(page.file.replace("dist/client", ""), "https://course.invalid");
     for (const match of source.matchAll(/href="([^"]*#[^"]+)"/g)) {
       const targetUrl = new URL(match[1], pageUrl);

@@ -9,7 +9,7 @@ topics: ["Graph", "Kernel", "Runtime", "Fusion", "MatMul"]
 
 # 从模型表达式到 Kernel
 
-[12 小时路线](./bootcamp.md)的 Day 1 单元 1–2，共 150 分钟。前 60 分钟读到“编译与执行”，后 90 分钟完成数值实验、数据量账本和复述。
+[AI Compiler 概念路线](./bootcamp.md)的 Day 1 单元 1–2，共 150 分钟。前 60 分钟读到“编译与执行”，后 90 分钟完成数值实验、数据量账本和复述。
 
 ## 先看用户写了什么
 
@@ -110,4 +110,4 @@ python3 labs/compiler_bootcamp/workload.py model
 
 用 3 分钟解释：“用户表达了什么计算？Compiler 可以改变什么？哪个阶段开始决定数据如何搬运？设备执行由谁提交？我用什么证据判断改进？”
 
-下一步进入 [C++ 快速回温](./cpp-refresh.md)，然后读 [IR 逐行观察](./ir-reading.md)。真实 PyTorch 的 graph capture、backend 和 Triton 关系参考 [PyTorch Compiler 文档](https://docs.pytorch.org/docs/stable/user_guide/torch_compiler/torch.compiler.html)；Triton 的分块算法可对照[官方 MatMul 教程](https://triton-lang.org/main/getting-started/tutorials/03-matrix-multiplication.html)。
+下一步直接进入 [IR 逐行观察](./ir-reading.md)。真实 PyTorch 的 graph capture、backend 和 Triton 关系参考 [PyTorch Compiler 文档](https://docs.pytorch.org/docs/stable/user_guide/torch_compiler/torch.compiler.html)；Triton 的分块算法可对照[官方 MatMul 教程](https://triton-lang.org/main/getting-started/tutorials/03-matrix-multiplication.html)。

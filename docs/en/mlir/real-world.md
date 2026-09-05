@@ -1,5 +1,5 @@
 ---
-title: "MLIR in Real Projects"
+title: "AI Compiler in Real Projects"
 description: "Understand where MLIR sits in real AI compilers through Triton, IREE, StableHLO, and a comparison with TileLang, then map the lessons to a BPU backend."
 outline: deep
 products: ["MLIR", "Triton", "IREE", "TileLang"]
@@ -7,7 +7,7 @@ documentType: "Scenario Primer"
 topics: ["Real Projects", "Compiler Pipeline", "Kernel DSL", "BPU Backend", "Lowering"]
 ---
 
-# MLIR in Real Projects: Triton, IREE, and TileLang
+# AI Compiler in Real Projects: Triton, IREE, and TileLang
 
 Starting with Operation, Dialect, and PatternRewriter often leaves a learner knowing the vocabulary but not why the abstractions exist.
 
@@ -18,9 +18,9 @@ Use this mental model first: **MLIR is neither a complete AI compiler nor one fi
 - **TileLang is not currently an MLIR project.** Its documentation defines kernels as TVM TIR functions. It remains an excellent comparison because it exposes the same tiling, memory, pipeline, and hardware-mapping decisions.
 :::
 
-## Twelve-hour route: spend 60 minutes here
+## Concept route: spend 60 minutes here {#twelve-hour-route-spend-60-minutes-here}
 
-This is Block 7 of the [primer](./bootcamp.md). Spend 20 minutes on the three scenarios and project table, 20 comparing official MatMul examples, and 20 writing your own responsibility table. The later BPU engineering breakdown and IR dump exercise are optional; installing Triton or running a GPU is not required.
+This is Block 5 of the [primer](./bootcamp.md). Spend 20 minutes on the three scenarios and project table, 20 comparing official MatMul examples, and 20 writing your own responsibility table. The later BPU engineering breakdown and IR dump exercise are optional; installing Triton or running a GPU is not required.
 
 ### Scenario A: accelerate an existing PyTorch model
 

@@ -9,9 +9,9 @@ topics: ["Tiling", "Layout", "Memory", "Performance", "Quantization"]
 
 # Tiles, Data Movement, and Performance Lab
 
-This page covers two blocks of the [twelve-hour route](./bootcamp.md): **spend 90 minutes on Block 5 through its exit check; complete C++ B and the real-project comparison, then return for Block 8's 60 minutes.** Numbers come from the repository's analytical script, not measurements of a commercial GPU or BPU.
+This page covers two blocks of the [AI Compiler concept route](./bootcamp.md): **spend 90 minutes on Block 4 through its exit check; read the real-project comparison, then return for Block 6's 60 minutes.** Numbers come from the repository's analytical script, not measurements of a commercial GPU or BPU.
 
-## Block 5: A device is not an infinitely large matrix calculator
+## Block 4: A device is not an infinitely large matrix calculator {#block-5-a-device-is-not-an-infinitely-large-matrix-calculator}
 
 Budget 30 minutes for concepts and capacity, 25 for DMA and dependencies, 25 for experiments, and 10 for explanation.
 
@@ -95,13 +95,13 @@ Source: [workload.py](https://github.com/hansarnold/archNotes/blob/main/labs/com
 
 Try `--tile-k 32` and `--tile-k 128`. Predict SRAM use and request count first. The exercise requires K to be divisible by BK. A real kernel must handle tails instead of reading beyond the last partial tile.
 
-### Block 5 exit check
+### Block 4 exit check {#block-5-exit-check}
 
 Explain the extra storage used by double buffering, the dependency that prevents premature reads, and why the 48 KiB plan must be rejected.
 
-Continue to [C++ B: a miniature pass](./cpp-labs.md), then [real projects](./real-world.md), before returning below.
+Continue to [real projects](./real-world.md), then return to the performance section below.
 
-## Block 8: Performance and numerics, 60 minutes
+## Block 6: Performance and numerics, 60 minutes {#block-8-performance-and-numerics-60-minutes}
 
 Budget 20 minutes for roofline and shapes, 20 for INT8, and 20 for verification and explanation.
 
@@ -149,7 +149,7 @@ INT8 MatMul commonly uses wider INT32 accumulation, but overflow still depends o
 
 Fix shape, dtype, hardware, and software versions. Separate compilation and warmup from steady-state execution, synchronize asynchronous device work before timing completion, repeat measurements, and check outputs. Label this script's cycles as predictions, not measured BPU performance.
 
-### Block 8 exit check
+### Block 6 exit check {#block-8-exit-check}
 
 Write one capacity constraint, one performance assumption, and one numerical risk, each with a verification method. Finish with the [30-minute discussion rehearsal](./discussion.md).
 

@@ -9,7 +9,7 @@ topics: ["IR", "SSA", "Canonicalization", "CSE", "Lowering"]
 
 # Reading an IR Change
 
-Day 1 block 4 takes 90 minutes: structure 20, annotation 20, two observations of 15 each, and explanation 20. Start with [Model to Kernel](./model-to-kernel.md).
+Day 1 block 3 takes 90 minutes: structure 20, annotation 20, two observations of 15 each, and explanation 20. Start with [Model to Kernel](./model-to-kernel.md).
 
 ## Five building blocks
 

@@ -9,7 +9,7 @@ topics: ["IR", "SSA", "Canonicalization", "CSE", "Lowering"]
 
 # 逐行看懂一处 IR 变化
 
-Day 1 单元 4，90 分钟：结构 20、读代码 20、两个观察各 15、复述 20。先完成[模型到 Kernel](./model-to-kernel.md)，理解 IR 是 Compiler 的程序表示。
+Day 1 单元 3，90 分钟：结构 20、读代码 20、两个观察各 15、复述 20。先完成[模型到 Kernel](./model-to-kernel.md)，理解 IR 是 Compiler 的程序表示。
 
 ## 先认识五个构件
 
